@@ -9,6 +9,7 @@ const { Memory } = require('./memory');
 const { Planner } = require('./planner');
 const { Executor } = require('./executor');
 const { OpsAgent } = require('./ops');
+const { Brain } = require('./brain');
 const fs = require('fs');
 const path = require('path');
 
@@ -30,6 +31,7 @@ class Agent {
     this.planner = new Planner(this.memory);
     this.executor = new Executor(this.memory);
     this.ops = new OpsAgent(this.memory);
+    this.brain = new Brain();
     this.running = false;
     this.conversationHistory = [];
   }
