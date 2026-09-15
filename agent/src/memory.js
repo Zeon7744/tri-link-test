@@ -1,5 +1,4 @@
 'use strict';
-
 /**
  * Memory Store - Persistent JSON-based knowledge for the agent
  * Stores: project context, plans, completed tasks, decisions, metrics
@@ -77,6 +76,11 @@ class Memory {
 
   get(key) { return this.data[key]; }
   set(key, value) { this.data[key] = value; this.save(); }
+
+  clearTasks() {
+    this.data.tasks = [];
+    this.save();
+  }
 
   addTask(task) {
     task.id = `task-${Date.now()}`;
