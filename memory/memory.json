@@ -1,0 +1,36 @@
+{
+  "version": "1.0.0",
+  "plans": [
+    {
+      "id": "plan-1",
+      "title": "GitHub MCP 服务器",
+      "status": "active"
+    }
+  ],
+  "tasks": [
+    {
+      "id": "task-1",
+      "title": "创建 MCP 服务器模板",
+      "priority": "high",
+      "category": "feature",
+      "status": "pending"
+    },
+    {
+      "id": "task-2",
+      "title": "编写配置文档",
+      "priority": "medium",
+      "category": "docs",
+      "status": "pending"
+    },
+    {
+      "id": "task-3",
+      "title": "添加测试用例",
+      "priority": "medium",
+      "category": "feature",
+      "status": "pending"
+    }
+  ],
+  "metrics": {
+    "totalCommits": 6
+  }
+}

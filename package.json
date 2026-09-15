@@ -4,14 +4,19 @@
   "private": true,
   "description": "GitHub + Gitee + AFDian three-way linkage framework",
   "workspaces": [
-    "packages/*"
+    "packages/*",
+    "agent"
   ],
   "scripts": {
     "dev:dashboard": "cd packages/dashboard && node server.js",
     "dev:mcp": "cd packages/afdian-mcp && npm run dev",
     "test:mcp": "cd packages/afdian-mcp && node test/index.js",
     "build": "npm run build --workspaces",
-    "lint": "echo 'No linter configured'"
+    "lint": "echo 'No linter configured'",
+    "agent": "node bin/agent-cli.js",
+    "agent:status": "node bin/agent-cli.js --status",
+    "agent:check": "node bin/agent-cli.js --check",
+    "agent:plan": "node bin/agent-cli.js --plan"
   },
   "engines": {
     "node": ">=18.0.0"
