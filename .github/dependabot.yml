@@ -1,0 +1,16 @@
+version: 2
+updates:
+  # GitHub Actions
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "dependencies"
+      - "ci-cd"
+
+  # PowerShell scripts (using psrule for validation)
+  - package-ecosystem: "devcontainers"
+    directory: "/"
+    schedule:
+      interval: "weekly"

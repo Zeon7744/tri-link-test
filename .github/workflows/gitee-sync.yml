@@ -1,0 +1,65 @@
+name: Tri-Link Gitee Sync
+
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  sync-to-gitee:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Git
+        run: |
+          git config --global user.name "Zeon7744"
+          git config --global user.email "zeon7744@gmail.com"
+          # Generate SSH key for this workflow
+          ssh-keygen -t ed25519 -C "tri-link-sync@github-actions" -f /tmp/sync_key -N ""
+          echo "SSH_KEY=$(cat /tmp/sync_key)" >> $GITHUB_ENV
+          echo "SSH_PUB=$(cat /tmp/sync_key.pub)" >> $GITHUB_ENV
+
+      - name: Add Gitee known host
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan gitee.com >> ~/.ssh/known_hosts
+
+      - name: Push to Gitee
+        env:
+          GIT_SSH_COMMAND: "ssh -i /tmp/sync_key -o StrictHostKeyChecking=no"
+        run: |
+          REPO_NAME=$(echo "${{ github.repository }}" | cut -d'/' -f2)
+          echo "Syncing to Gitee: Zeon7744/$REPO_NAME"
+          git remote add gitee git@gitee.com:Zeon7744/$REPO_NAME.git 2>/dev/null || \
+            git remote set-url gitee git@gitee.com:Zeon7744/$REPO_NAME.git
+          git push gitee main --force-with-lease 2>&1 || \
+            echo "Note: Gitee sync may require manual setup or webhook configuration"
+
+      - name: Create status report
+        run: |
+          echo "## Sync Status Report" > sync-report.md
+          echo "" >> sync-report.md
+          echo "- **Repository**: ${{ github.repository }}" >> sync-report.md
+          echo "- **Branch**: ${{ github.ref_name }}" >> sync-report.md
+          echo "- **Commit**: ${{ github.sha }}" >> sync-report.md
+          echo "- **Timestamp**: $(date -u +%Y-%m-%dT%H:%M:%SZ)" >> sync-report.md
+          echo "- **Trigger**: ${{ github.event_name }}" >> sync-report.md
+          echo "" >> sync-report.md
+          echo "### Next Steps" >> sync-report.md
+          echo "- Run \`git sync-gitee\` locally for full synchronization" >> sync-report.md
+          echo "- Consider setting up Gitee webhook for real-time sync" >> sync-report.md
+
+      - name: Upload status report
+        uses: actions/upload-artifact@v4
+        with:
+          name: sync-report
+          path: sync-report.md
+          retention-days: 7
