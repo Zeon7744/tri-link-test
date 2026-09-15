@@ -1,0 +1,7 @@
+{
+  "name": "tri-link",
+  "version": "1.0.0",
+  "description": "GitHub + Gitee + AFDian three-way linkage skill",
+  "skill": "./SKILL.md",
+  "tags": ["git", "github", "gitee", "afdian", "mcp", "ci-cd"]
+}

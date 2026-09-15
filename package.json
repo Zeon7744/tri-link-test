@@ -1,0 +1,19 @@
+{
+  "name": "tri-link",
+  "version": "1.0.0",
+  "private": true,
+  "description": "GitHub + Gitee + AFDian three-way linkage framework",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:dashboard": "cd packages/dashboard && node server.js",
+    "dev:mcp": "cd packages/afdian-mcp && npm run dev",
+    "test:mcp": "cd packages/afdian-mcp && node test/index.js",
+    "build": "npm run build --workspaces",
+    "lint": "echo 'No linter configured'"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

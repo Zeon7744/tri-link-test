@@ -1,0 +1,16 @@
+node_modules/
+dist/
+build/
+.env
+.env.local
+*.log
+.DS_Store
+Thumbs.db
+.cached/
+.cache/
+tmp/
+temp/
+coverage/
+.nyc_output/
+*.orig
+*.bak

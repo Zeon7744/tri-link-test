@@ -1,0 +1,24 @@
+{
+  "name": "@tri-link/afdian-mcp",
+  "version": "1.0.0",
+  "description": "AFDian (爱发电) MCP Server - Sponsor data for AI assistants",
+  "main": "src/server.js",
+  "bin": {
+    "afdian-mcp": "bin/server.js"
+  },
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "test": "node test/index.js",
+    "lint": "node --check src/server.js"
+  },
+  "keywords": ["mcp", "afdian", "sponsor", "model-context-protocol"],
+  "author": "Zeon7744",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0"
+  }
+}
