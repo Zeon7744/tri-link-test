@@ -4,16 +4,20 @@ on:
   push:
     branches: [main, master]
   workflow_dispatch:
+  schedule:
+    - cron: '0 0 * * *'
 
 jobs:
   sync:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Check tri-link status
         run: |
-          echo "=== GitHub Actions Sync Check ==="
+          echo "=== Tri-Link Status Check ==="
           echo "Branch: ${{ github.ref_name }}"
           echo "Repository: ${{ github.repository }}"
           echo "Commit: ${{ github.sha }}"
@@ -38,7 +42,7 @@ jobs:
       - name: Summary
         run: |
           echo ""
-          echo "✅ Sync completed successfully"
+          echo "=== Sync Completed Successfully ==="
           echo "Branch: ${{ github.ref_name }}"
           echo "Commit: ${{ github.sha }}"
           echo "Time: ${{ env.SYNC_TIME }}"
