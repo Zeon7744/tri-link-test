@@ -48,3 +48,4 @@ coverage/
 # Build
 *.orig
 *.bak
+\n# Test generated packages\npackages/test-mcp*\npackages/test-gen-*\npackages/test-mcp-dup-*\n

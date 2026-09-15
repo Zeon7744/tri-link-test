@@ -1,0 +1,17 @@
+{
+  "name": "@tri-link/github-api-v2",
+  "version": "1.0.0",
+  "description": "GitHub API MCP V2",
+  "main": "src/server.js",
+  "bin": {
+    "github-api-v2": "bin/server.js"
+  },
+  "scripts": {
+    "start": "node bin/server.js",
+    "test": "node test/index.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "zod": "^3.23.0"
+  }
+}
