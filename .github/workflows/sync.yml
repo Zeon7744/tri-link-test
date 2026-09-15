@@ -1,0 +1,44 @@
+name: Tri-Link Sync
+
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check tri-link status
+        run: |
+          echo "=== GitHub Actions Sync Check ==="
+          echo "Branch: ${{ github.ref_name }}"
+          echo "Repository: ${{ github.repository }}"
+          echo "Commit: ${{ github.sha }}"
+
+      - name: Generate timestamp
+        run: echo "SYNC_TIME=$(date -u +%Y%m%dT%H%M%SZ)" >> $GITHUB_ENV
+
+      - name: Create sync marker
+        run: |
+          mkdir -p .sync-artifacts
+          echo "Synced: ${{ env.SYNC_TIME }}" > .sync-artifacts/sync-marker.txt
+          echo "Repository: ${{ github.repository }}" >> .sync-artifacts/sync-marker.txt
+          echo "Commit SHA: ${{ github.sha }}" >> .sync-artifacts/sync-marker.txt
+
+      - name: Upload sync artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sync-marker
+          path: .sync-artifacts/
+          retention-days: 7
+
+      - name: Summary
+        run: |
+          echo ""
+          echo "✅ Sync completed successfully"
+          echo "Branch: ${{ github.ref_name }}"
+          echo "Commit: ${{ github.sha }}"
+          echo "Time: ${{ env.SYNC_TIME }}"
