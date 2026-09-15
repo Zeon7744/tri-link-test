@@ -122,14 +122,6 @@ if (args.includes('--optimize') || args.includes('-o')) {
   process.exit(0);
 }
 
-if (args.includes('--codegen')) {
-  // List available code generators
-  console.log('\n=== Available Code Generators ===\n');
-  console.log('  MCP Server:  node bin/agent-cli.js --codegen mcp <name> [description]');
-  console.log('  Dashboard:   node bin/agent-cli.js --codegen widget <name> [options]');
-  console.log('');
-  process.exit(0);
-}
 
 if (args[0] === '--codegen') {
   const type = args[1];
