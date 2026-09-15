@@ -29,7 +29,7 @@ class Planner {
   /**
    * Parse a natural language requirement into structured tasks
    */
-  parseRequirement(requirement) {
+  parseRequirement(requirement, brainHints) {
     const req = requirement.toLowerCase();
     const tasks = [];
 

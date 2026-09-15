@@ -60,13 +60,6 @@ class Executor {
     } catch {}
   }
 
-  createFile(filePath, content) {
-    const fullPath = path.join(PROJECT_ROOT, filePath);
-    const dir = path.dirname(fullPath);
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-    fs.writeFileSync(fullPath, content, 'utf8');
-    return { success: true, path: fullPath };
-  }
 }
 
 module.exports = { Executor };

@@ -10,6 +10,9 @@ const { Planner } = require('./planner');
 const { Executor } = require('./executor');
 const { OpsAgent } = require('./ops');
 const { Brain } = require('./brain');
+const { Heartbeat } = require('./heartbeat');
+const { CodeGen } = require('./codegen');
+const { Optimizer } = require('./optimizer');
 const fs = require('fs');
 const path = require('path');
 
@@ -32,6 +35,9 @@ class Agent {
     this.executor = new Executor(this.memory);
     this.ops = new OpsAgent(this.memory);
     this.brain = new Brain();
+    this.heartbeat = new Heartbeat(this);
+    this.codegen = new CodeGen();
+    this.optimizer = new Optimizer(this.brain);
     this.running = false;
     this.conversationHistory = [];
   }
@@ -67,6 +73,8 @@ class Agent {
     log('magenta', `\n🤖 收到需求: "${requirement}"`);
     log('dim', `   分析中...`);
 
+    const hints = this.brain.getPlanningHints(requirement);
+    this.memory.set('brainHints', hints);
     const plan = this.planner.createPlan(requirement, options);
     log('green', `   ✅ 规划完成: ${plan.tasks.length} 个任务`);
 
@@ -104,6 +112,8 @@ class Agent {
     try {
       const result = await this.executor.run(task);
       this.memory.completeTask(task.id, result);
+      const duration = Date.now() - (task._startedAt || Date.now());
+      this.brain.learnFromTask({ task, duration, success: true, insights: result ? [result.summary] : [] });
       log('green', `   ✅ 完成: ${task.title}`);
       this.memory.updateMetrics({ totalCommits: (this.memory.data.metrics.totalCommits || 0) + 1 });
     } catch (err) {
