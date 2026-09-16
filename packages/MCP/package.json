@@ -1,0 +1,17 @@
+{
+  "name": "@tri-link/MCP",
+  "version": "1.0.0",
+  "description": "创建 MCP 服务器模板",
+  "main": "src/server.js",
+  "bin": {
+    "MCP": "bin/server.js"
+  },
+  "scripts": {
+    "start": "node bin/server.js",
+    "test": "node test/index.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "zod": "^3.23.0"
+  }
+}

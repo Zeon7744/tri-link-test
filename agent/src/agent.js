@@ -13,6 +13,9 @@ const { Brain } = require('./brain');
 const { Heartbeat } = require('./heartbeat');
 const { CodeGen } = require('./codegen');
 const { Optimizer } = require('./optimizer');
+const { Analytics } = require('./analytics');
+const { MonetizationPlanner } = require('./monetization');
+const { SmartOps } = require('./smartops');
 const fs = require('fs');
 const path = require('path');
 
@@ -38,6 +41,9 @@ class Agent {
     this.heartbeat = new Heartbeat(this);
     this.codegen = new CodeGen();
     this.optimizer = new Optimizer(this.brain);
+    this.analytics = new Analytics(this.brain, this.memory);
+    this.monetization = new MonetizationPlanner(this.memory, this.analytics);
+    this.smartops = new SmartOps(this);
     this.running = false;
     this.conversationHistory = [];
   }
