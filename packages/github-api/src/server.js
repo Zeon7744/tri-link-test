@@ -17,12 +17,8 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
   ],
 }));
 
-server.setRequestHandler(CallToolRequestSchema, async (request) => {
-  const { name, arguments: args } = request.params;
-  if (name === 'list_items') {
-    return { content: [{ type: 'text', text: JSON.stringify({ items: [] }, null, 2) }]; }
-  }
-  throw new Error('Unknown tool: ' + name);
+server.setRequestHandler(CallToolRequestSchema, async () => {
+  return { content: [{ type: 'text', text: JSON.stringify({ items: [] }, null, 2) }] };
 });
 
 async function main() {

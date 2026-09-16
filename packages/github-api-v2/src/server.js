@@ -17,34 +17,63 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
     {
       name: 'get_repo_stats',
       description: 'Get GitHub repository statistics (stars, forks, issues)',
-      inputSchema: { type: 'object', properties: { owner: { type: 'string' }, repo: { type: 'string' } }, required: [] },
+      inputSchema: {
+        type: 'object',
+        properties: { owner: { type: 'string' }, repo: { type: 'string' } },
+        required: [],
+      },
     },
     {
       name: 'list_issues',
       description: 'List open issues in a GitHub repository',
-      inputSchema: { type: 'object', properties: { owner: { type: 'string' }, repo: { type: 'string' }, state: { type: 'string', default: 'open' } }, required: [] },
+      inputSchema: {
+        type: 'object',
+        properties: {
+          owner: { type: 'string' },
+          repo: { type: 'string' },
+          state: { type: 'string', default: 'open' },
+        },
+        required: [],
+      },
     },
     {
       name: 'search_repos',
       description: 'Search GitHub repositories',
-      inputSchema: { type: 'object', properties: { query: { type: 'string' }, sort: { type: 'string', default: 'stars' } }, required: ['query'] },
+      inputSchema: {
+        type: 'object',
+        properties: { query: { type: 'string' }, sort: { type: 'string', default: 'stars' } },
+        required: ['query'],
+      },
     },
   ],
-});
+}));
 
 function ghRequest(reqPath) {
   return new Promise((resolve, reject) => {
     const options = {
       hostname: 'api.github.com',
       path: reqPath,
-      headers: { 'User-Agent': 'github-api-v2-agent/1.0', 'Accept': 'application/vnd.github.v3+json' }
+      headers: {
+        'User-Agent': 'github-api-v2-agent/1.0',
+        'Accept': 'application/vnd.github.v3+json',
+      },
     };
-    if (GITHUB_TOKEN) options.headers['Authorization'] = 'token ' + GITHUB_TOKEN;
-    https.get(options, (res) => {
-      let data = '';
-      res.on('data', c => data += c);
-      res.on('end', () => { try { resolve(JSON.parse(data)); } catch(e) { resolve(data); } });
-    }).on('error', reject);
+    if (GITHUB_TOKEN) options.headers.Authorization = 'token ' + GITHUB_TOKEN;
+    https
+      .get(options, (res) => {
+        let data = '';
+        res.on('data', (c) => {
+          data += c;
+        });
+        res.on('end', () => {
+          try {
+            resolve(JSON.parse(data));
+          } catch (err) {
+            resolve(data);
+          }
+        });
+      })
+      .on('error', reject);
   });
 }
 
@@ -52,25 +81,70 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   const { name: toolName, arguments: args } = request.params;
   const owner = args.owner || GITHUB_USER;
   const repo = args.repo || GITHUB_REPO;
+
   if (toolName === 'get_repo_stats') {
     const data = await ghRequest('/repos/' + owner + '/' + repo);
-    return { content: [{ type: 'text', text: JSON.stringify({
-      stars: data.stargazers_count, forks: data.forks_count,
-      issues: data.open_issues_count, lang: data.language, updated: data.updated_at
-    }, null, 2) }]; }
+    return {
+      content: [
+        {
+          type: 'text',
+          text: JSON.stringify(
+            {
+              stars: data.stargazers_count,
+              forks: data.forks_count,
+              issues: data.open_issues_count,
+              lang: data.language,
+              updated: data.updated_at,
+            },
+            null,
+            2,
+          ),
+        },
+      ],
+    };
   }
+
   if (toolName === 'list_issues') {
     const data = await ghRequest('/repos/' + owner + '/' + repo + '/issues?state=' + (args.state || 'open') + '&per_page=10');
-    return { content: [{ type: 'text', text: JSON.stringify(data.map(i => ({
-      number: i.number, title: i.title, state: i.state, created: i.created_at
-    })), null, 2) }]; }
+    return {
+      content: [
+        {
+          type: 'text',
+          text: JSON.stringify(
+            (Array.isArray(data) ? data : []).map((item) => ({
+              number: item.number,
+              title: item.title,
+              state: item.state,
+              created: item.created_at,
+            })),
+            null,
+            2,
+          ),
+        },
+      ],
+    };
   }
+
   if (toolName === 'search_repos') {
     const data = await ghRequest('/search/repositories?q=' + encodeURIComponent(args.query) + '&sort=' + (args.sort || 'stars') + '&per_page=5');
-    return { content: [{ type: 'text', text: JSON.stringify(data.items.map(r => ({
-      name: r.full_name, stars: r.stargazers_count, lang: r.language
-    })), null, 2) }]; }
+    return {
+      content: [
+        {
+          type: 'text',
+          text: JSON.stringify(
+            (data.items || []).map((item) => ({
+              name: item.full_name,
+              stars: item.stargazers_count,
+              lang: item.language,
+            })),
+            null,
+            2,
+          ),
+        },
+      ],
+    };
   }
+
   throw new Error('Unknown tool: ' + toolName);
 });
 

@@ -1,6 +1,7 @@
 # OS
 .DS_Store
 Thumbs.db
+$null
 
 # IDE
 .vscode/
@@ -48,4 +49,8 @@ coverage/
 # Build
 *.orig
 *.bak
-\n# Test generated packages\npackages/test-mcp*\npackages/test-gen-*\npackages/test-mcp-dup-*\n
+
+# Test generated packages
+packages/test-mcp*
+packages/test-gen-*
+packages/test-mcp-dup-*
