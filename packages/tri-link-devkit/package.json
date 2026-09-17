@@ -1,0 +1,28 @@
+{
+  "name": "@tri-link/devkit",
+  "version": "1.0.0",
+  "description": "Tri-Link DevKit - one-command GitHub + Gitee + AFDian project initialization and sync",
+  "main": "src/index.js",
+  "bin": {
+    "tri-link-devkit": "bin/cli.js"
+  },
+  "scripts": {
+    "start": "node bin/cli.js",
+    "test": "node test/index.js",
+    "lint": "node --check src/index.js"
+  },
+  "keywords": [
+    "tri-link",
+    "github",
+    "gitee",
+    "afdian",
+    "git",
+    "devkit",
+    "cli"
+  ],
+  "author": "Zeon7744",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
