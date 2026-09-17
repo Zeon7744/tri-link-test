@@ -16,6 +16,7 @@ const { Optimizer } = require('./optimizer');
 const { Analytics } = require('./analytics');
 const { MonetizationPlanner } = require('./monetization');
 const { SmartOps } = require('./smartops');
+const { AutoSync } = require('./auto-sync');
 const fs = require('fs');
 const path = require('path');
 
@@ -44,6 +45,7 @@ class Agent {
     this.analytics = new Analytics(this.brain, this.memory);
     this.monetization = new MonetizationPlanner(this.memory, this.analytics);
     this.smartops = new SmartOps(this);
+    this.autosync = new AutoSync(this.memory);
     this.running = false;
     this.conversationHistory = [];
   }

@@ -45,6 +45,7 @@ node bin/agent-cli.js "创建一个 GitHub MCP 服务器"
 | `memory` | 查看记忆摘要 |
 | `clear` | 清空待处理任务 |
 | `quit` | 退出 |
+| `auto-sync` | 自动 commit + 推送 GitHub/Gitee |
 
 ## 需求示例
 

@@ -10,6 +10,7 @@
  *   node bin/agent-cli.js --check      - Run ops health check
  *   node bin/agent-cli.js --learn      - Trigger learning cycle
  *   node bin/agent-cli.js --report     - Show brain learning report
+ *   node bin/agent-cli.js --auto-sync  - Auto commit + push enabled files
  */
 
 const path = require('path');
@@ -198,6 +199,22 @@ if (args.includes('--monetize') || args.includes('-m')) {
 if (args.includes('--smartops') || args.includes('-s')) {
   agent.smartops.start(60000);
   console.log('SmartOps running. Press Ctrl+C to stop.');
+  return;
+}
+
+if (args.includes('--auto-sync')) {
+  (async () => {
+  const dryRun = args.includes('--dry-run');
+  const status = agent.autosync.status();
+  console.log('=== AutoSync Status ===');
+  console.log(JSON.stringify(status, null, 2));
+  const result = await agent.autosync.run({
+    onlyKnownFiles: !args.includes('--all-files'),
+    dryRun,
+  });
+  console.log(JSON.stringify(result, null, 2));
+  process.exit(result.success ? 0 : 1);
+  })().catch((err) => { console.error('AutoSync failed:', err.message); process.exit(1); });
   return;
 }
 if (args.includes('--plan')) {
