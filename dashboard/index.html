@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>Tri-Link Dashboard · tri-link-test</title>
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #0d1117; color: #e6edf3;
+      min-height: 100vh; padding: 48px 20px;
+    }
+    .wrap { max-width: 720px; margin: 0 auto; }
+    h1 {
+      font-size: 1.6em; margin-bottom: 8px;
+      background: linear-gradient(135deg, #58a6ff, #a371f7);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    }
+    .sub { color: #8b949e; font-size: .9em; margin-bottom: 32px; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px,1fr)); gap: 16px; }
+    .card {
+      background: #161b22; border: 1px solid #30363d;
+      border-radius: 8px; padding: 24px; text-align: center;
+    }
+    .val { font-size: 2.2em; font-weight: 700; color: #58a6ff; }
+    .lbl { color: #8b949e; font-size: .85em; margin-top: 6px; }
+    .links { margin-top: 32px; display: flex; gap: 12px; flex-wrap: wrap; }
+    .links a {
+      color: #58a6ff; text-decoration: none; font-size: .9em;
+      background: #161b22; border: 1px solid #30363d;
+      border-radius: 6px; padding: 8px 16px;
+    }
+    .links a:hover { background: #1c2128; }
+    .ts { margin-top: 24px; color: #484f58; font-size: .8em; }
+    .err { color: #f85149; font-size: .9em; margin-top: 16px; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Tri-Link Dashboard</h1>
+    <div class="sub">tri-link-test · Zeon7744 · 2026/9/17</div>
+    <div class="grid">
+      <div class="card"><div class="val" id="gh-stars">—</div><div class="lbl">GitHub Stars</div></div>
+      <div class="card"><div class="val" id="gh-forks">—</div><div class="lbl">GitHub Forks</div></div>
+      <div class="card"><div class="val" id="gh-issues">—</div><div class="lbl">Open Issues</div></div>
+      <div class="card"><div class="val" id="af-sponsors">—</div><div class="lbl">AFDian Sponsors</div></div>
+    </div>
+    <div class="links">
+      <a href="https://github.com/Zeon7744/tri-link-test" target="_blank">GitHub</a>
+      <a href="https://gitee.com/Zeon7744/tri-link-test" target="_blank">Gitee</a>
+      <a href="https://afdian.com/a/Zeon7744" target="_blank">AFDian</a>
+    </div>
+    <div class="ts" id="ts">Loading…</div>
+    <div class="err" id="err" style="display:none"></div>
+  </div>
+  <script>
+    const GH_REPO = "https://api.github.com/repos/Zeon7744/tri-link-test";
+    const AF_USER = "https://afdian.com/a/Zeon7744";
+
+    async function load() {
+      // GitHub
+      try {
+        const res = await fetch(GH_REPO);
+        const d = await res.json();
+        document.getElementById('gh-stars').textContent = d.stargazers_count ?? '—';
+        document.getElementById('gh-forks').textContent = d.forks_count ?? '—';
+        document.getElementById('gh-issues').textContent = d.open_issues_count ?? '—';
+      } catch {
+        document.getElementById('gh-stars').textContent = 'N/A';
+        document.getElementById('gh-forks').textContent = 'N/A';
+        document.getElementById('gh-issues').textContent = 'N/A';
+      }
+      // AFDian (fallback: show link)
+      document.getElementById('af-sponsors').textContent = '见 AFDian 页面 →';
+      document.getElementById('ts').textContent = 'Updated: ' + new Date().toLocaleString('zh-CN');
+    }
+    load();
+  </script>
+</body>
+</html>

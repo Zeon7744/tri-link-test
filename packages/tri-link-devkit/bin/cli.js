@@ -187,7 +187,7 @@ async function main() {
     }
 
     case 'self': {
-      const report = devKit.selfInspect();
+      const report = devkit.selfInspect();
       console.log(JSON.stringify(report, null, 2));
       break;
     }
@@ -197,26 +197,26 @@ async function main() {
         console.error('Usage: learn <text>');
         process.exit(1);
       }
-      devKit.learnFromFeedback(text, { source: 'cli' });
+      devkit.learnFromFeedback(text, { source: 'cli' });
       break;
     }
     case 'upgrade': {
       const id = opts.positional.id;
       if (!id || id === '--suggest') {
-        console.log(JSON.stringify(devKit.suggestUpgrade(), null, 2));
+        console.log(JSON.stringify(devkit.suggestUpgrade(), null, 2));
       } else {
-        const result = devKit.applyUpgrade(id, opts);
+        const result = devkit.applyUpgrade(id, opts);
         console.log(JSON.stringify(result, null, 2));
       }
       break;
     }
     case 'release': {
-      const result = devKit.release(opts);
+      const result = devkit.release(opts);
       console.log(JSON.stringify(result, null, 2));
       break;
     }
     case 'setup': {
-      const result = devKit.setup(opts.answers || {});
+      const result = devkit.setup(opts.answers || {});
       console.log(JSON.stringify(result, null, 2));
       break;
     }

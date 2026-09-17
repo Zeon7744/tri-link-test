@@ -1,0 +1,25 @@
+{
+  "mcpServers": {
+    "afdian": {
+      "command": "node",
+      "args": [
+        "D:\\项目\\开发部\\github\\tri-link-test\\packages\\afdian-mcp\\bin\\server.js"
+      ],
+      "env": {
+        "AFDIAN_USER": "Zeon7744",
+        "AFDIAN_TOKEN": "<your-afdian-token>"
+      }
+    },
+    "github": {
+      "command": "node",
+      "args": [
+        "D:\\项目\\开发部\\github\\tri-link-test\\packages\\github-api-v2\\bin\\server.js"
+      ],
+      "env": {
+        "GITHUB_USER": "Zeon7744",
+        "GITHUB_REPO": "<repo>",
+        "GITHUB_TOKEN": "<your-github-token>"
+      }
+    }
+  }
+}

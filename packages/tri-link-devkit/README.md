@@ -84,3 +84,13 @@ my-repo/
 ```bash
 node packages/tri-link-devkit/test/index.js
 ```
+
+## Generated Artifacts
+
+- .mcp/mcp.json - MCP server config (sample, generated locally)
+- dashboard/index.html - Dashboard HTML (sample, generated locally)
+
+These files are committed as examples. You can regenerate them with:
+
+    node bin/cli.js mcp-config
+    node bin/cli.js dashboard <repo>
