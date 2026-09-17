@@ -27,6 +27,11 @@ Commands:
   afdian-stats            Fetch AFDian sponsorship stats
   mcp-config [dir]        Generate MCP server config
   dashboard [repo] [dir]  Generate standalone dashboard HTML
+  self                    Self-inspect DevKit capabilities and learnings
+  learn <text>            Record a learning/feedback into .tri-link/learnings.json
+  upgrade [id|--suggest]  Apply or list self-upgrades
+  release [version]       Bump version, generate CHANGELOG.md, tag
+  setup                   Interactive guided setup wizard
   help                    Show this help
 
 Global options (or use env vars):
@@ -181,6 +186,40 @@ async function main() {
       break;
     }
 
+    case 'self': {
+      const report = devKit.selfInspect();
+      console.log(JSON.stringify(report, null, 2));
+      break;
+    }
+    case 'learn': {
+      const text = opts.positional.text || opts.positional.join(' ');
+      if (!text) {
+        console.error('Usage: learn <text>');
+        process.exit(1);
+      }
+      devKit.learnFromFeedback(text, { source: 'cli' });
+      break;
+    }
+    case 'upgrade': {
+      const id = opts.positional.id;
+      if (!id || id === '--suggest') {
+        console.log(JSON.stringify(devKit.suggestUpgrade(), null, 2));
+      } else {
+        const result = devKit.applyUpgrade(id, opts);
+        console.log(JSON.stringify(result, null, 2));
+      }
+      break;
+    }
+    case 'release': {
+      const result = devKit.release(opts);
+      console.log(JSON.stringify(result, null, 2));
+      break;
+    }
+    case 'setup': {
+      const result = devKit.setup(opts.answers || {});
+      console.log(JSON.stringify(result, null, 2));
+      break;
+    }
     case '':
       console.log(USAGE);
       process.exit(1);

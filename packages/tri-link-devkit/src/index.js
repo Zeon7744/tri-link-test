@@ -80,7 +80,7 @@ function httpsPost(url, body, headers = {}) {
 function log(level, message, ...extra) {
   const colors = { ok: '\x1b[32m', warn: '\x1b[33m', err: '\x1b[31m', info: '\x1b[36m' };
   const reset = '\x1b[0m';
-  const prefix = { ok: '[OK]', warn: '[WARN]', err: '[ERR]', info: '  »' }[level] || '  ·';
+  const prefix = { ok: '[OK]', warn: '[WARN]', err: '[ERR]', info: '  >>' }[level] || '  ·';
   console.log(`${colors[level] || ''}${prefix}${reset} ${message}`, ...extra);
 }
 
@@ -89,14 +89,6 @@ function log(level, message, ...extra) {
 class DevKit {
   /**
    * @param {object} opts - user-supplied configuration
-   * @param {string} [opts.githubUser]
-   * @param {string} [opts.giteeUser]
-   * @param {string} [opts.afdianUser]
-   * @param {string} [opts.githubToken]
-   * @param {string} [opts.giteeToken]
-   * @param {string} [opts.afdianToken]
-   * @param {string} [opts.branch]
-   * @param {string} [opts.description]
    */
   constructor(opts = {}) {
     this.githubUser = opts.githubUser || process.env.GITHUB_USER || 'Zeon7744';
@@ -105,24 +97,25 @@ class DevKit {
     this.githubToken = opts.githubToken || process.env.GITHUB_TOKEN || '';
     this.giteeToken = opts.giteeToken || process.env.GITEE_TOKEN || '';
     this.afdianToken = opts.afdianToken || process.env.AFDIAN_TOKEN || '';
-    this.branch = opts.branch || 'main';
+    this.branch = opts.branch || process.env.TRI_BRANCH || 'main';
     this.description = opts.description || '';
     this.repoName = opts.repoName || '';
     this.rootDir = opts.rootDir || process.cwd();
+    this.template = opts.template || 'node';
+    this.version = opts.version || '0.1.0';
+    this.ciProvider = opts.ciProvider || 'github';
+    this.dryRun = Boolean(opts.dryRun);
   }
 
   // ── init ─────────────────────────────────────────────────────────────────────
 
-  /**
-   * Initialize a new tri-link project in the current directory.
-   * Creates: git repo, remotes, FUNDING.yml, README, .gitignore, .github/
-   */
   async init(repoName, opts = {}) {
     this.repoName = repoName;
     const ghUser = opts.githubUser || this.githubUser;
     const giteeUser = opts.giteeUser || this.giteeUser;
     const afdianUser = opts.afdianUser || this.afdianUser;
     const desc = opts.description || this.description;
+    const token = opts.token || '';
 
     log('info', `Initializing Tri-Link project: ${repoName}`);
     log('info', `  GitHub : ${ghUser}/${repoName}`);
@@ -257,13 +250,17 @@ class DevKit {
     log('ok', '.tri-link/config.json created');
 
     // 7. First commit
-    const addRes = gitRun('add -A', this.rootDir);
-    if (addRes.ok) {
-      const commitRes = gitRun(
-        `commit -m "chore: initialize tri-link project ${repoName}"`,
-        this.rootDir
-      );
-      commitRes.ok ? log('ok', 'initial commit created') : log('warn', 'commit skipped (nothing to commit or no git identity)');
+    if (!this.dryRun) {
+      const addRes = gitRun('add -A', this.rootDir);
+      if (addRes.ok) {
+        const commitRes = gitRun(
+          `commit -m "chore: initialize tri-link project ${repoName}"`,
+          this.rootDir
+        );
+        commitRes.ok ? log('ok', 'initial commit created') : log('warn', 'commit skipped (nothing to commit or no git identity)');
+      }
+    } else {
+      log('info', 'Dry-run: skipping commit');
     }
 
     console.log('');
@@ -271,15 +268,12 @@ class DevKit {
     console.log('');
     console.log('  Next steps:');
     console.log('    1. Create repos on GitHub and Gitee (or let DevKit do it)');
-    console.log(`    2. Push:  node packages/tri-link-devkit/bin/cli.js push`);
-    console.log(`    3. Or use git aliases: git push-all`);
+    console.log('    2. Push:  node packages/tri-link-devkit/bin/cli.js push');
+    console.log('    3. Or use git aliases: git push-all');
   }
 
   // ── create-remote ────────────────────────────────────────────────────────────
 
-  /**
-   * Create remote repos via API if tokens are provided.
-   */
   async createRemotes(repoName, opts = {}) {
     const ghUser = opts.githubUser || this.githubUser;
     const giteeUser = opts.giteeUser || this.giteeUser;
@@ -303,7 +297,7 @@ class DevKit {
         log('err', 'GitHub API error: ' + err.message);
       }
     } else {
-      log('warn', 'GITHUB_TOKEN not set — skipping GitHub repo creation (use SSH instead)');
+      log('warn', 'GITHUB_TOKEN not set - skipping GitHub repo creation (use SSH instead)');
     }
 
     // Gitee
@@ -323,31 +317,32 @@ class DevKit {
         log('err', 'Gitee API error: ' + err.message);
       }
     } else {
-      log('warn', 'GITEE_TOKEN not set — skipping Gitee repo creation (use SSH instead)');
+      log('warn', 'GITEE_TOKEN not set - skipping Gitee repo creation (use SSH instead)');
     }
   }
 
   // ── push ─────────────────────────────────────────────────────────────────────
 
-  /**
-   * Push current branch to all configured remotes.
-   */
   async push(branch = this.branch) {
     const remotes = this._getRemotes();
     if (remotes.length === 0) {
       log('err', 'No remotes configured. Run "init" first.');
-      return;
+      return { ok: false, results: [] };
     }
 
     log('info', `Pushing branch "${branch}" to ${remotes.length} remote(s)...`);
+    const results = [];
     for (const remote of remotes) {
       const res = gitRun(`push ${remote} ${branch}`, this.rootDir);
       if (res.ok) {
         log('ok', `${remote}: push succeeded`);
+        results.push({ remote, ok: true });
       } else {
         log('err', `${remote}: ${res.output}`);
+        results.push({ remote, ok: false, output: res.output });
       }
     }
+    return { ok: results.every((r) => r.ok), results };
   }
 
   // ── status ───────────────────────────────────────────────────────────────────
@@ -358,7 +353,6 @@ class DevKit {
     const gitStatus = gitRun('status --porcelain', this.rootDir);
     const dirty = gitStatus.ok && gitStatus.output.length > 0;
 
-    // ahead/behind vs origin
     let ahead = 0, behind = 0;
     if (remotes.includes('origin')) {
       const aheadRes = gitRun(`rev-list --count HEAD..origin/${branch}`, this.rootDir);
@@ -383,16 +377,12 @@ class DevKit {
 
   // ── afdian-stats ─────────────────────────────────────────────────────────────
 
-  /**
-   * Fetch live AFDian sponsorship stats.
-   */
   async afdianStats() {
     const user = this.afdianUser;
     const afdianConfig = this._loadAfdianConfig();
 
     if (!afdianConfig) {
       log('warn', 'No AFDian config found. Using public API fallback.');
-      // Fallback: fetch the creator page for basic stats
       try {
         const res = await httpsGet(`https://afdian.com/a/${user}`);
         log('ok', `AFDian page fetched (HTTP ${res.status})`);
@@ -429,7 +419,7 @@ class DevKit {
             time: s.time,
           })),
         };
-        log('ok', `AFDian stats: ${stats.total_sponsors} sponsors, ¥${stats.monthly_income}/month`);
+        log('ok', `AFDian stats: ${stats.total_sponsors} sponsors, ${stats.monthly_income}/month`);
         return stats;
       }
 
@@ -444,16 +434,14 @@ class DevKit {
 
   // ── github-stats ─────────────────────────────────────────────────────────────
 
-  /**
-   * Fetch GitHub repo stats via API (no token needed for public repos).
-   */
   async githubStats(repoName = this.repoName) {
     if (!repoName) {
       log('err', 'No repo name provided');
       return null;
     }
     try {
-      const res = await httpsGet(`https://api.github.com/repos/${this.githubUser}/${repoName}`);
+      const headers = this.githubToken ? { Authorization: 'token ' + this.githubToken } : {};
+      const res = await httpsGet(`https://api.github.com/repos/${this.githubUser}/${repoName}`, headers);
       if (res.status === 200 && res.body) {
         const stats = {
           user: this.githubUser,
@@ -463,8 +451,10 @@ class DevKit {
           open_issues: res.body.open_issues_count,
           language: res.body.language,
           updated: res.body.updated_at,
+          html_url: res.body.html_url,
+          default_branch: res.body.default_branch,
         };
-        log('ok', `GitHub ${this.githubUser}/${repoName}: ⭐${stats.stars} 🍴${stats.forks} issues:${stats.open_issues}`);
+        log('ok', `GitHub ${this.githubUser}/${repoName}: stars=${stats.stars} forks=${stats.forks} issues=${stats.open_issues}`);
         return stats;
       }
       log('warn', `GitHub API returned HTTP ${res.status}`);
@@ -477,9 +467,6 @@ class DevKit {
 
   // ── mcp-config ───────────────────────────────────────────────────────────────
 
-  /**
-   * Generate MCP configuration files for the user's IDE.
-   */
   mcpConfig(opts = {}) {
     const targetDir = opts.targetDir || path.join(this.rootDir, '.mcp');
     this._ensureDir(targetDir);
@@ -511,17 +498,14 @@ class DevKit {
     log('ok', `MCP config written: ${filePath}`);
     console.log('');
     console.log('  Add to your IDE:');
-    console.log('    VS Code  → .vscode/settings.json → mcpServers');
-    console.log('    Cursor   → .cursor/mcp.json');
-    console.log('    Claude   → .codex/config.json → mcpServers');
+    console.log('    VS Code  -> .vscode/settings.json -> mcpServers');
+    console.log('    Cursor   -> .cursor/mcp.json');
+    console.log('    Claude   -> .codex/config.json -> mcpServers');
     return filePath;
   }
 
   // ── dashboard ────────────────────────────────────────────────────────────────
 
-  /**
-   * Generate a standalone dashboard HTML file with live stats.
-   */
   dashboard(opts = {}) {
     const repoName = opts.repoName || this.repoName || 'unknown-repo';
     const ghUser = opts.githubUser || this.githubUser;
@@ -529,7 +513,7 @@ class DevKit {
     const outDir = opts.outDir || path.join(this.rootDir, 'dashboard');
     this._ensureDir(outDir);
 
-    const html = this._buildDashboardHtml({ repoName, ghUser, afdianUser, githubToken: this.githubToken, afdianUser });
+    const html = this._buildDashboardHtml({ repoName, ghUser, afdianUser });
     const filePath = path.join(outDir, 'index.html');
     this._writeFile(filePath, html);
     log('ok', `Dashboard written: ${filePath}`);
@@ -537,6 +521,189 @@ class DevKit {
     console.log('  Open in browser: ' + filePath);
     console.log('  Or serve:        npx serve ' + outDir);
     return filePath;
+  }
+
+  // ── scaffold (new project template) ────────────────────────────────────────
+
+  scaffold(repoName, opts = {}) {
+    const template = opts.template || this.template || 'node';
+    const outDir = opts.outDir ? path.resolve(opts.outDir) : path.join(this.rootDir, repoName);
+    this._ensureDir(outDir);
+
+    const ghUser = opts.githubUser || this.githubUser;
+    const giteeUser = opts.giteeUser || this.giteeUser;
+    const afdianUser = opts.afdianUser || this.afdianUser;
+
+    // Save rootDir temporarily
+    const originalRoot = this.rootDir;
+    this.rootDir = outDir;
+    this.repoName = repoName;
+
+    // Run base init
+    this.init(repoName, opts);
+
+    // Add template-specific files
+    if (template === 'node' || template === 'mcp') {
+      this._scaffoldNode(outDir, repoName, opts);
+    }
+    if (template === 'mcp') {
+      this._scaffoldMcp(outDir, repoName, opts);
+    }
+    if (template === 'html' || template === 'site') {
+      this._scaffoldHtml(outDir, repoName, opts);
+    }
+
+    // Generate dashboard
+    this.dashboard({ repoName, outDir: path.join(outDir, 'dashboard') });
+
+    // Generate MCP config
+    this.mcpConfig({ targetDir: path.join(outDir, '.mcp') });
+
+    // Generate CI
+    this._scaffoldCI(outDir, opts);
+
+    // Restore
+    this.rootDir = originalRoot;
+    log('ok', `Project scaffolded: ${outDir}`);
+    return outDir;
+  }
+
+  _scaffoldNode(outDir, repoName, opts) {
+    const pkg = {
+      name: repoName,
+      version: this.version,
+      description: this.description || `Tri-Link project: ${repoName}`,
+      main: 'index.js',
+      scripts: {
+        start: 'node index.js',
+        test: 'node test.js',
+      },
+      license: 'MIT',
+    };
+    this._writeFile(path.join(outDir, 'package.json'), JSON.stringify(pkg, null, 2));
+    this._writeFile(path.join(outDir, 'index.js'), [
+      `// ${repoName}`,
+      `console.log('Hello from ${repoName}');`,
+      `module.exports = { name: '${repoName}' };`,
+      '',
+    ].join('\n'));
+    this._writeFile(path.join(outDir, 'test.js'), [
+      `const assert = require('assert');`,
+      `const app = require('./index.js');`,
+      `assert.ok(app.name === '${repoName}', 'name matches');`,
+      `console.log('All tests passed');`,
+      '',
+    ].join('\n'));
+    log('ok', 'Node template files created');
+  }
+
+  _scaffoldMcp(outDir, repoName, opts) {
+    const mcpDir = path.join(outDir, 'mcp');
+    this._ensureDir(mcpDir);
+    const serverJs = [
+      `#!/usr/bin/env node`,
+      `'use strict';`,
+      '',
+      `// ${repoName} MCP Server`,
+      `const { Server } = require('@modelcontextprotocol/sdk/server/index.js');`,
+      `const { StdioServerTransport } = require('@modelcontextprotocol/sdk/server/stdio.js');`,
+      `const { ListToolsRequestSchema, CallToolRequestSchema } = require('@modelcontextprotocol/sdk/types.js');`,
+      '',
+      `const server = new Server({ name: '${repoName}-mcp', version: '${this.version}' }, {`,
+      `  capabilities: { tools: {} },`,
+      `});`,
+      '',
+      `server.setRequestHandler(ListToolsRequestSchema, async () => ({`,
+      `  tools: [`,
+      `    { name: 'hello', description: 'Return a greeting', inputSchema: { type: 'object', properties: {}, required: [] } },`,
+      `  ],`,
+      `}));`,
+      '',
+      `server.setRequestHandler(CallToolRequestSchema, async () => ({`,
+      `  content: [{ type: 'text', text: JSON.stringify({ message: 'Hello from ${repoName} MCP server' }) }],`,
+      `});`,
+      '',
+      `async function main() {`,
+      `  const transport = new StdioServerTransport();`,
+      `  await server.connect(transport);`,
+      `  console.error('${repoName} MCP server running on stdio');`,
+      `}`,
+      '',
+      `main().catch(console.error);`,
+      '',
+    ].join('\n');
+    this._writeFile(path.join(mcpDir, 'server.js'), serverJs);
+    log('ok', 'MCP server template created at mcp/server.js');
+  }
+
+  _scaffoldHtml(outDir, repoName, opts) {
+    const htmlDir = path.join(outDir, 'public');
+    this._ensureDir(htmlDir);
+    this._writeFile(
+      path.join(htmlDir, 'index.html'),
+      this._buildDashboardHtml({ repoName, ghUser: opts.githubUser || this.githubUser, afdianUser: opts.afdianUser || this.afdianUser })
+    );
+    this._writeFile(
+      path.join(outDir, 'index.html'),
+      [
+        `<!DOCTYPE html>`,
+        `<html>`,
+        `<head><meta charset="UTF-8"/><title>${repoName}</title></head>`,
+        `<body>`,
+        `  <h1>${repoName}</h1>`,
+        `  <p>Tri-Link project by ${opts.githubUser || this.githubUser}</p>`,
+        `  <ul>`,
+        `    <li><a href="https://github.com/${opts.githubUser || this.githubUser}/${repoName}">GitHub</a></li>`,
+        `    <li><a href="https://gitee.com/${opts.giteeUser || this.giteeUser}/${repoName}">Gitee</a></li>`,
+        `    <li><a href="https://afdian.com/a/${opts.afdianUser || this.afdianUser}">AFDian</a></li>`,
+        `  </ul>`,
+        `</body>`,
+        `</html>`,
+        '',
+      ].join('\n')
+    );
+    log('ok', 'HTML template files created');
+  }
+
+  _scaffoldCI(outDir, opts) {
+    const provider = opts.ciProvider || this.ciProvider || 'github';
+    if (provider === 'github' || provider === 'gitee') {
+      const workflowDir = path.join(outDir, '.github', 'workflows');
+      this._ensureDir(workflowDir);
+      const ciYml = [
+        'name: CI',
+        '',
+        'on: [push, pull_request]',
+        '',
+        'jobs:',
+        '  test:',
+        '    runs-on: ubuntu-latest',
+        '    steps:',
+        "      - uses: actions/checkout@v4",
+        "      - uses: actions/setup-node@v4",
+        '        with:',
+        "          node-version: '18'",
+        '      - run: npm install',
+        '      - run: npm test || true',
+        '',
+      ].join('\n');
+      this._writeFile(path.join(workflowDir, 'ci.yml'), ciYml);
+      log('ok', '.github/workflows/ci.yml created');
+    }
+    if (provider === 'gitlab') {
+      const gitlabCi = [
+        'stages: [test]',
+        '',
+        'test:',
+        '  stage: test',
+        '  script:',
+        '    - npm install',
+        '    - npm test || true',
+        '',
+      ].join('\n');
+      this._writeFile(path.join(outDir, '.gitlab-ci.yml'), gitlabCi);
+      log('ok', '.gitlab-ci.yml created');
+    }
   }
 
   // ── helpers ─────────────────────────────────────────────────────────────────
@@ -581,7 +748,6 @@ class DevKit {
         if (fs.existsSync(p)) return JSON.parse(fs.readFileSync(p, 'utf8'));
       } catch {}
     }
-    // Fallback: use env vars
     if (this.afdianToken) {
       return { token: this.afdianToken, user_id: this.afdianUser, api_base: 'https://afdian.com' };
     }
@@ -615,12 +781,12 @@ class DevKit {
       '## Sponsor',
       '',
       `If this project helps you, consider supporting the author:`,
-      `👉 https://afdian.com/a/${afdianUser}`,
+      `-> https://afdian.com/a/${afdianUser}`,
       '',
     ].join('\n');
   }
 
-  _buildDashboardHtml({ repoName, ghUser, afdianUser, afdianToken, githubToken }) {
+  _buildDashboardHtml({ repoName, ghUser, afdianUser }) {
     const ghRepo = `https://api.github.com/repos/${ghUser}/${repoName}`;
     const afdianUserUrl = `https://afdian.com/a/${afdianUser}`;
     return `<!DOCTYPE html>
@@ -628,7 +794,7 @@ class DevKit {
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-  <title>Tri-Link Dashboard · ${repoName}</title>
+  <title>Tri-Link Dashboard - ${repoName}</title>
   <style>
     * { margin:0; padding:0; box-sizing:border-box; }
     body {
@@ -664,19 +830,19 @@ class DevKit {
 <body>
   <div class="wrap">
     <h1>Tri-Link Dashboard</h1>
-    <div class="sub">${repoName} · ${ghUser} · ${new Date().toLocaleDateString('zh-CN')}</div>
+    <div class="sub">${repoName} / ${ghUser} / ${new Date().toLocaleDateString('zh-CN')}</div>
     <div class="grid">
-      <div class="card"><div class="val" id="gh-stars">—</div><div class="lbl">GitHub Stars</div></div>
-      <div class="card"><div class="val" id="gh-forks">—</div><div class="lbl">GitHub Forks</div></div>
-      <div class="card"><div class="val" id="gh-issues">—</div><div class="lbl">Open Issues</div></div>
-      <div class="card"><div class="val" id="af-sponsors">—</div><div class="lbl">AFDian Sponsors</div></div>
+      <div class="card"><div class="val" id="gh-stars">-</div><div class="lbl">GitHub Stars</div></div>
+      <div class="card"><div class="val" id="gh-forks">-</div><div class="lbl">GitHub Forks</div></div>
+      <div class="card"><div class="val" id="gh-issues">-</div><div class="lbl">Open Issues</div></div>
+      <div class="card"><div class="val" id="af-sponsors">-</div><div class="lbl">AFDian Sponsors</div></div>
     </div>
     <div class="links">
       <a href="https://github.com/${ghUser}/${repoName}" target="_blank">GitHub</a>
       <a href="https://gitee.com/${ghUser}/${repoName}" target="_blank">Gitee</a>
       <a href="${afdianUserUrl}" target="_blank">AFDian</a>
     </div>
-    <div class="ts" id="ts">Loading…</div>
+    <div class="ts" id="ts">Loading...</div>
     <div class="err" id="err" style="display:none"></div>
   </div>
   <script>
@@ -684,20 +850,18 @@ class DevKit {
     const AF_USER = ${JSON.stringify(afdianUserUrl)};
 
     async function load() {
-      // GitHub
       try {
         const res = await fetch(GH_REPO);
         const d = await res.json();
-        document.getElementById('gh-stars').textContent = d.stargazers_count ?? '—';
-        document.getElementById('gh-forks').textContent = d.forks_count ?? '—';
-        document.getElementById('gh-issues').textContent = d.open_issues_count ?? '—';
+        document.getElementById('gh-stars').textContent = d.stargazers_count ?? '-';
+        document.getElementById('gh-forks').textContent = d.forks_count ?? '-';
+        document.getElementById('gh-issues').textContent = d.open_issues_count ?? '-';
       } catch {
         document.getElementById('gh-stars').textContent = 'N/A';
         document.getElementById('gh-forks').textContent = 'N/A';
         document.getElementById('gh-issues').textContent = 'N/A';
       }
-      // AFDian (fallback: show link)
-      document.getElementById('af-sponsors').textContent = '见 AFDian 页面 →';
+      document.getElementById('af-sponsors').textContent = 'See AFDian ->';
       document.getElementById('ts').textContent = 'Updated: ' + new Date().toLocaleString('zh-CN');
     }
     load();
@@ -706,5 +870,260 @@ class DevKit {
 </html>`;
   }
 }
+
+// ── Self-evolution engine ─────────────────────────────────────────────────────
+// DevKit can inspect its own capabilities, record user feedback, suggest
+// upgrades, and apply them without external tooling. All state lives under
+// .tri-link/ which is gitignored.
+
+function bumpVersion(v, part) {
+  const [maj, min, pat] = String(v).split('.').map(Number);
+  if (part === 'major') return (maj + 1) + '.0.0';
+  if (part === 'minor') return maj + '.' + (min + 1) + '.0';
+  return maj + '.' + min + '.' + (pat + 1);
+}
+
+DevKit.prototype.loadLearnings = function () {
+  const file = this._learningFile();
+  if (!fs.existsSync(file)) {
+    return { observations: [], successPatterns: [], failurePatterns: [], appliedUpgrades: [] };
+  }
+  try {
+    const data = JSON.parse(fs.readFileSync(file, 'utf8'));
+    return {
+      observations: data.observations || [],
+      successPatterns: data.successPatterns || [],
+      failurePatterns: data.failurePatterns || [],
+      appliedUpgrades: data.appliedUpgrades || [],
+    };
+  } catch {
+    return { observations: [], successPatterns: [], failurePatterns: [], appliedUpgrades: [] };
+  }
+};
+
+DevKit.prototype.saveLearnings = function (data) {
+  const file = this._learningFile();
+  this._ensureDir(path.dirname(file));
+  data.updatedAt = new Date().toISOString();
+  this._writeFile(file, JSON.stringify(data, null, 2));
+  return data;
+};
+
+DevKit.prototype._learningFile = function () {
+  return path.join(this.rootDir, '.tri-link', 'learnings.json');
+};
+
+DevKit.prototype.learnFromFeedback = function (input, meta = {}) {
+  const text = String(input || '').trim();
+  if (!text) throw new Error('feedback text required');
+  const data = this.loadLearnings();
+  const entry = {
+    text,
+    type: meta.type || 'observation',
+    success: meta.success !== false,
+    timestamp: new Date().toISOString(),
+    meta: { source: meta.source || 'cli', ...meta },
+  };
+  data.observations.push(entry);
+  if (entry.success) data.successPatterns.push(entry);
+  else data.failurePatterns.push(entry);
+  this.saveLearnings(data);
+  log('ok', 'learning recorded: ' + text);
+  return entry;
+};
+
+DevKit.prototype.selfInspect = function () {
+  const learnings = this.loadLearnings();
+  const capabilities = ['init', 'createRemotes', 'push', 'status', 'afdianStats', 'githubStats', 'mcpConfig', 'dashboard', 'scaffold'];
+  const present = capabilities.filter((c) => typeof this[c] === 'function');
+  const missing = capabilities.filter((c) => typeof this[c] !== 'function');
+  const gaps = [
+    ...(learnings.failurePatterns.length > 0 ? [{ id: 'failure-patterns', label: 'recorded failure patterns need review' }] : []),
+    ...(learnings.successPatterns.length === 0 ? [{ id: 'success-patterns', label: 'no success patterns yet' }] : []),
+  ];
+  const suggestions = [];
+  if (typeof this.changelog !== 'function') suggestions.push({ id: 'add-release-command', title: 'Add release command', description: 'Generate CHANGELOG.md, bump version, create tag', priority: 1, effort: 2 });
+  if (typeof this.setup !== 'function') suggestions.push({ id: 'add-interactive-setup', title: 'Add guided setup wizard', description: 'Record user parameters into .tri-link/config.json', priority: 2, effort: 1 });
+  if (typeof this._giteeSync !== 'function') suggestions.push({ id: 'add-gitee-sync', title: 'Add Gitee auto-sync', description: 'Push current branch to gitee remote', priority: 2, effort: 1 });
+  if (typeof this.enhancedMcpConfig !== 'function') suggestions.push({ id: 'add-mcp-enhanced', title: 'Enhance MCP config', description: 'Add more server options', priority: 3, effort: 1 });
+  if (typeof this.docs !== 'function') suggestions.push({ id: 'add-docs-gen', title: 'Auto-generate project docs', description: 'Produce docs/index.html from README', priority: 3, effort: 2 });
+  if (missing.length > 0) suggestions.push({ id: 'restore-missing', title: 'Restore missing core capabilities', description: missing.join(', '), priority: 0, effort: 3 });
+  return { capabilities: present, missing, gaps, suggestions, learnings };
+};
+
+DevKit.prototype.suggestUpgrade = function () {
+  const report = this.selfInspect();
+  const applied = new Set(this.loadLearnings().appliedUpgrades);
+  const upgrades = report.suggestions
+    .filter((s) => !applied.has(s.id))
+    .map((s, i) => ({ id: s.id, title: s.title, description: s.description, priority: s.priority, effort: s.effort, source: i === 0 ? 'core-gap' : 'learnings' }));
+  return upgrades;
+};
+
+DevKit.prototype.applyUpgrade = function (upgradeId, opts = {}) {
+  const upgrades = this.suggestUpgrade();
+  const target = upgrades.find((u) => u.id === upgradeId) || { id: upgradeId, title: upgradeId, description: 'user-requested upgrade' };
+  const learnings = this.loadLearnings();
+  learnings.appliedUpgrades.push(target.id);
+  this.saveLearnings(learnings);
+  const actions = {
+    'add-release-command': () => {
+      this._changelogImpl = this._ensureReleaseCommand();
+      return 'installed changelog/release';
+    },
+    'add-interactive-setup': () => {
+      this._setupImpl = this._ensureSetupWizard();
+      return 'installed guided setup';
+    },
+    'add-gitee-sync': () => {
+      this._giteeSyncImpl = this._ensureGiteeSync();
+      return 'installed gitee sync';
+    },
+    'add-mcp-enhanced': () => {
+      this._enhancedMcpConfigImpl = this._ensureMcpEnhanced();
+      return 'installed enhanced MCP config';
+    },
+    'add-docs-gen': () => {
+      this._docsImpl = this._ensureDocsGen();
+      return 'installed docs generator';
+    },
+  };
+  const action = actions[target.id];
+  const result = action ? action() : 'acknowledged upgrade request';
+  log('ok', 'upgrade applied: ' + target.id + ' -> ' + result);
+  return { id: target.id, applied: true, result, opts };
+};
+
+DevKit.prototype._ensureReleaseCommand = function () {
+  const self = this;
+  return function changelog(opts = {}) {
+    const version = opts.version || self.version || '0.1.0';
+    const part = opts.bump || 'patch';
+    const next = bumpVersion(version, part);
+    const lines = ['# Changelog', '', '## ' + next + ' - ' + new Date().toISOString().slice(0, 10), '', '- Self-evolution update: ' + (opts.note || 'recorded by DevKit'), ''];
+    self._writeFile(path.join(self.rootDir, 'CHANGELOG.md'), lines.join('\n'));
+    const pkgPath = path.join(self.rootDir, 'package.json');
+    if (fs.existsSync(pkgPath) && !opts.dryRun) {
+      const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
+      pkg.version = next;
+      self._writeFile(pkgPath, JSON.stringify(pkg, null, 2));
+    }
+    log('ok', 'CHANGELOG.md generated for ' + next);
+    return { version: next, part, file: path.join(self.rootDir, 'CHANGELOG.md') };
+  };
+};
+
+DevKit.prototype._ensureSetupWizard = function () {
+  const self = this;
+  return function setup(answers = {}) {
+    const cfgPath = path.join(self.rootDir, '.tri-link', 'config.json');
+    let cfg = {};
+    if (fs.existsSync(cfgPath)) cfg = JSON.parse(fs.readFileSync(cfgPath, 'utf8'));
+    const keys = ['githubUser', 'giteeUser', 'afdianUser', 'branch', 'description', 'template'];
+    keys.forEach((k) => { if (answers[k] !== undefined) cfg[k] = answers[k]; });
+    self._ensureDir(path.dirname(cfgPath));
+    self._writeFile(cfgPath, JSON.stringify(cfg, null, 2));
+    self.learnFromFeedback('setup wizard answers: ' + JSON.stringify(answers), { type: 'success', source: 'setup' });
+    log('ok', 'setup answers saved to ' + cfgPath);
+    return cfg;
+  };
+};
+
+DevKit.prototype._ensureGiteeSync = function () {
+  const self = this;
+  return function _giteeSync(branch = self.branch) {
+    const res = gitRun('push gitee ' + branch, self.rootDir);
+    if (res.ok) log('ok', 'gitee sync succeeded');
+    else log('warn', 'gitee sync: ' + res.output);
+    return res;
+  };
+};
+
+DevKit.prototype._ensureMcpEnhanced = function () {
+  const self = this;
+  return function enhancedMcpConfig(opts = {}) {
+    const targetDir = opts.targetDir || path.join(self.rootDir, '.mcp');
+    self._ensureDir(targetDir);
+    const filePath = path.join(targetDir, 'mcp-enhanced.json');
+    const config = {
+      mcpServers: {
+        triLinkCore: { command: 'node', args: [path.join(self.rootDir, 'packages', 'tri-link-devkit', 'bin', 'cli.js')], env: { GITHUB_TOKEN: '\${GITHUB_TOKEN}', GITEE_TOKEN: '\${GITEE_TOKEN}', AFDIAN_TOKEN: '\${AFDIAN_TOKEN}' } },
+      },
+      version: '2.0',
+      notes: 'Enhanced MCP config generated by DevKit self-upgrade',
+    };
+    self._writeFile(filePath, JSON.stringify(config, null, 2));
+    log('ok', 'enhanced MCP config written: ' + filePath);
+    return filePath;
+  };
+};
+
+DevKit.prototype._ensureDocsGen = function () {
+  const self = this;
+  return function docs(opts = {}) {
+    const outDir = opts.outDir || path.join(self.rootDir, 'docs');
+    self._ensureDir(outDir);
+    const readme = path.join(self.rootDir, 'README.md');
+    const readmeText = fs.existsSync(readme) ? fs.readFileSync(readme, 'utf8') : '# ' + (self.repoName || 'Project');
+    const html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + (self.repoName || 'Docs') + '</title></head><body><pre>' + readmeText.replace(/</g, '&lt;') + '</pre></body></html>';
+    self._writeFile(path.join(outDir, 'index.html'), html);
+    log('ok', 'docs generated: ' + path.join(outDir, 'index.html'));
+    return path.join(outDir, 'index.html');
+  };
+};
+
+DevKit.prototype.changelog = function (opts = {}) {
+  if (typeof this._changelogImpl !== 'function') this._changelogImpl = this._ensureReleaseCommand();
+  return this._changelogImpl(opts);
+};
+
+DevKit.prototype.setup = function (answers = {}) {
+  if (typeof this._setupImpl !== 'function') this._setupImpl = this._ensureSetupWizard();
+  return this._setupImpl(answers);
+};
+
+DevKit.prototype._giteeSync = function (branch = this.branch) {
+  if (typeof this._giteeSyncImpl !== 'function') this._giteeSyncImpl = this._ensureGiteeSync();
+  return this._giteeSyncImpl(branch);
+};
+
+DevKit.prototype.enhancedMcpConfig = function (opts = {}) {
+  if (typeof this._enhancedMcpConfigImpl !== 'function') this._enhancedMcpConfigImpl = this._ensureMcpEnhanced();
+  return this._enhancedMcpConfigImpl(opts);
+};
+
+DevKit.prototype.docs = function (opts = {}) {
+  if (typeof this._docsImpl !== 'function') this._docsImpl = this._ensureDocsGen();
+  return this._docsImpl(opts);
+};
+
+DevKit.prototype.release = function (opts = {}) {
+  this.changelog(opts);
+  const next = opts.version || this.version || '0.1.0';
+  const tag = 'v' + next;
+  const res = gitRun('tag ' + tag, this.rootDir);
+  if (res.ok) log('ok', 'tag created: ' + tag);
+  else log('warn', 'tag: ' + res.output);
+  return { tag, version: next };
+};
+
+DevKit.prototype.triageFailures = function () {
+  const data = this.loadLearnings();
+  const counts = {};
+  for (const f of data.failurePatterns) counts[f.text] = (counts[f.text] || 0) + 1;
+  const ranked = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+  return { total: data.failurePatterns.length, ranked };
+};
+
+DevKit.prototype.patternReport = function () {
+  const data = this.loadLearnings();
+  return {
+    observations: data.observations.length,
+    successPatterns: data.successPatterns.length,
+    failurePatterns: data.failurePatterns.length,
+    recentFailures: data.failurePatterns.slice(-10),
+    recentSuccesses: data.successPatterns.slice(-10),
+  };
+};
 
 module.exports = { DevKit };

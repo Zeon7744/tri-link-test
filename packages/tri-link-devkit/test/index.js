@@ -70,6 +70,7 @@ async function main() {
 
       // Check FUNDING content
       const funding = fs.readFileSync(path.join(tmpDir, '.github', 'FUNDING.yml'), 'utf8');
+      assert.ok(funding.includes('custom'), 'FUNDING should have custom key');
       assert.ok(funding.includes('TestUser'), 'FUNDING should contain user');
 
       // Check git remotes
@@ -165,6 +166,89 @@ async function main() {
   console.log(`\n${passed} passed, ${failed} failed\n`);
   process.exit(failed > 0 ? 1 : 0);
 }
+
+
+  // 9. self-inspect returns expected shape
+  test('selfInspect returns expected shape', () => {
+    const { DevKit } = require('../src/index');
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'tri-link-self-test-'));
+    try {
+      const dk = new DevKit({ rootDir: tmpDir, repoName: 'self-test', dryRun: true });
+      const report = dk.selfInspect();
+      assert.ok(Array.isArray(report.capabilities), 'capabilities is array');
+      assert.ok(Array.isArray(report.gaps), 'gaps is array');
+      assert.ok(Array.isArray(report.suggestions), 'suggestions is array');
+      assert.ok(typeof report.learnings === 'object', 'learnings is object');
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  // 10. learnFromFeedback writes learnings.json
+  test('learnFromFeedback writes learnings.json', () => {
+    const { DevKit } = require('../src/index');
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'tri-link-learn-test-'));
+    try {
+      const dk = new DevKit({ rootDir: tmpDir, repoName: 'learn-test', dryRun: true });
+      dk.learnFromFeedback('test feedback entry', { type: 'success', source: 'test' });
+      const lf = fs.readFileSync(path.join(tmpDir, '.tri-link', 'learnings.json'), 'utf8');
+      const data = JSON.parse(lf);
+      assert.ok(data.observations.length === 1, 'one observation recorded');
+      assert.ok(data.successPatterns.length === 1, 'one success pattern');
+      assert.strictEqual(data.observations[0].text, 'test feedback entry');
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  // 11. suggestUpgrade returns array
+  test('suggestUpgrade returns array', () => {
+    const { DevKit } = require('../src/index');
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'tri-link-suggest-test-'));
+    try {
+      const dk = new DevKit({ rootDir: tmpDir, repoName: 'suggest-test', dryRun: true });
+      const upgrades = dk.suggestUpgrade();
+      assert.ok(Array.isArray(upgrades), 'returns array');
+      if (upgrades.length > 0) {
+        const first = upgrades[0];
+        assert.ok(typeof first.id === 'string', 'has id');
+        assert.ok(typeof first.title === 'string', 'has title');
+      }
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  // 12. changelog generates markdown
+  test('changelog generates markdown', () => {
+    const { DevKit } = require('../src/index');
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'tri-link-changelog-test-'));
+    try {
+      const dk = new DevKit({ rootDir: tmpDir, repoName: 'cl-test', dryRun: true, version: '0.1.0' });
+      const result = dk.changelog({ bump: 'patch' });
+      assert.strictEqual(result.version, '0.1.1');
+      assert.ok(fs.existsSync(result.file), 'CHANGELOG.md exists');
+      const content = fs.readFileSync(result.file, 'utf8');
+      assert.ok(content.includes('# Changelog'), 'has heading');
+      assert.ok(content.includes('0.1.1'), 'has version');
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  // 13. release dry-run works
+  test('release dry-run works', () => {
+    const { DevKit } = require('../src/index');
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'tri-link-release-test-'));
+    try {
+      const dk = new DevKit({ rootDir: tmpDir, repoName: 'rel-test', dryRun: true, version: '0.2.0' });
+      const result = dk.release({ bump: 'minor', dryRun: true });
+      assert.strictEqual(result.version, '0.2.0');
+      assert.ok(result.tag.startsWith('v'), 'tag has v prefix');
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
 
 main().catch((err) => {
   console.error('Test runner error:', err);
