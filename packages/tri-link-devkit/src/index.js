@@ -1000,14 +1000,17 @@ DevKit.prototype._ensureReleaseCommand = function () {
     const version = opts.version || self.version || '0.1.0';
     const part = opts.bump || 'patch';
     const next = bumpVersion(version, part);
-    const lines = ['# Changelog', '', '## ' + next + ' - ' + new Date().toISOString().slice(0, 10), '', '- Self-evolution update: ' + (opts.note || 'recorded by DevKit'), ''];
-    self._writeFile(path.join(self.rootDir, 'CHANGELOG.md'), lines.join('\n'));
+  const lines = ['# Changelog', '', '## ' + next + ' - ' + new Date().toISOString().slice(0, 10), '', '- Self-evolution update: ' + (opts.note || 'recorded by DevKit'), ''];
+  self._writeFile(path.join(self.rootDir, 'CHANGELOG.md'), lines.join('\n'));
+  // Only write package.json version bump when NOT dryRun
+  if (!opts.dryRun) {
     const pkgPath = path.join(self.rootDir, 'package.json');
-    if (fs.existsSync(pkgPath) && !opts.dryRun) {
+    if (fs.existsSync(pkgPath)) {
       const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
       pkg.version = next;
-      self._writeFile(pkgPath, JSON.stringify(pkg, null, 2));
+      self._writeFile(pkgPath, JSON.stringify(pkg, null, 2) + '\n');
     }
+  }
     log('ok', 'CHANGELOG.md generated for ' + next);
     return { version: next, part, file: path.join(self.rootDir, 'CHANGELOG.md') };
   };
@@ -1098,9 +1101,14 @@ DevKit.prototype.docs = function (opts = {}) {
 };
 
 DevKit.prototype.release = function (opts = {}) {
-  this.changelog(opts);
+  const dryRun = Boolean(opts.dryRun || this.dryRun);
+  this.changelog({ ...opts, dryRun });
   const next = opts.version || this.version || '0.1.0';
   const tag = 'v' + next;
+  if (dryRun) {
+    log('info', `Release dry-run: would tag ${tag}`);
+    return { tag, version: next, dryRun: true };
+  }
   const res = gitRun('tag ' + tag, this.rootDir);
   if (res.ok) log('ok', 'tag created: ' + tag);
   else log('warn', 'tag: ' + res.output);
