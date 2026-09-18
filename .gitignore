@@ -54,3 +54,4 @@ coverage/
 packages/test-mcp*
 packages/test-gen-*
 packages/test-mcp-dup-*
+\n# stray root-level copies\nafdian-daemon.js\n\n
