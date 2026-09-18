@@ -1,0 +1,143 @@
+# Gitee Pages deploy
+# Pushes dashboard to Gitee gh-pages branch for static site hosting.
+# Gitee static site: https://<user>.gitee.io/<repo>/
+
+name: Gitee Pages Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Run all tests
+        run: |
+          cd packages/tri-link-devkit && node test/index.js
+          cd ../../packages/tri-link-mcp && node test/index.js
+          cd ../../agent && node test/integration.js
+
+  deploy-gitee-pages:
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      # Regenerate dashboard
+      - name: Regenerate dashboard
+        working-directory: packages/tri-link-devkit
+        run: node bin/cli.js dashboard tri-link-test -g "Zeon7744" -o "${{ github.workspace }}/dashboard"
+
+      # Prepare gh-pages content
+      - name: Prepare gh-pages branch
+        run: |
+          mkdir -p public
+          cp dashboard/index.html public/index.html
+
+          # Products landing page
+          cat > public/products.html << 'HEREDOC'
+          <!DOCTYPE html>
+          <html lang="en">
+          <head>
+            <meta charset="utf-8"/>
+            <meta name="viewport" content="width=device-width,initial-scale=1"/>
+            <title>Tri-Link Products</title>
+            <style>
+              *{margin:0;padding:0;box-sizing:border-box}
+              body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#0d1117;color:#e6edf3;min-height:100vh;padding:48px 20px}
+              .wrap{max-width:640px;margin:0 auto}
+              h1{font-size:1.5em;margin-bottom:8px}
+              .sub{color:#8b949e;font-size:.9em;margin-bottom:32px}
+              .card{background:#161b22;border:1px solid #30363d;border-radius:8px;padding:20px;margin-bottom:16px}
+              .card h2{font-size:1.1em;margin-bottom:8px;color:#58a6ff}
+              .card p{font-size:.9em;color:#8b949e;line-height:1.6}
+              .card pre{background:#0d1117;border-radius:4px;padding:12px;margin-top:8px;font-size:.85em;overflow-x:auto}
+              a{color:#58a6ff;text-decoration:none}
+              a:hover{text-decoration:underline}
+            </style>
+          </head>
+          <body>
+          <div class="wrap">
+            <h1>Tri-Link Products</h1>
+            <div class="sub">GitHub + Gitee + AFDian three-platform toolkit</div>
+
+            <div class="card">
+              <h2>@tri-link/devkit</h2>
+              <p>One-command project init, sync, dashboard, and self-upgrading engine.</p>
+              <pre>node packages/tri-link-devkit/bin/cli.js init my-repo</pre>
+            </div>
+
+            <div class="card">
+              <h2>@tri-link/mcp</h2>
+              <p>Unified MCP server with 6 tools for GitHub, Gitee, and AFDian.</p>
+              <pre>node packages/tri-link-mcp/bin/server.js</pre>
+            </div>
+
+            <div class="card">
+              <h2>@tri-link/agent</h2>
+              <p>Autonomous agent with Brain, Planner, CodeGen, AutoSync, SmartOps.</p>
+              <pre>node agent/bin/agent-cli.js status</pre>
+            </div>
+
+            <div class="card">
+              <h2>Links</h2>
+              <p>
+                <a href="https://github.com/Zeon7744/tri-link-test">GitHub</a> &middot;
+                <a href="https://gitee.com/Zeon7744/tri-link-test">Gitee</a> &middot;
+                <a href="https://afdian.com/a/Zeon7744">AFDian</a> &middot;
+                <a href="/">Dashboard</a>
+              </p>
+            </div>
+          </div>
+          </body>
+          </html>
+          HEREDOC
+
+      # Push to Gitee gh-pages branch
+      - name: Push to Gitee gh-pages
+        run: |
+          set -e
+          # Configure git
+          git config --global user.name "Zeon7744"
+          git config --global user.email "zeon7744@gmail.com"
+
+          # Add Gitee remote
+          git remote add gitee-gh-pages "https://gitee.com/Zeon7744/tri-link-test.git" 2>/dev/null || true
+
+          # Create gh-pages branch with dashboard
+          git checkout --orphan gh-pages
+          git rm -rf . 2>/dev/null || true
+          cp -r public/* .
+          git add .
+          git commit -m "chore: update Gitee Pages dashboard [skip ci]"
+
+          # Push to Gitee gh-pages using token
+          if [ -n "$GITEE_TOKEN" ]; then
+            git push "https://Zeon7744:${GITEE_TOKEN}@gitee.com/Zeon7744/tri-link-test.git" gh-pages --force
+            echo "Gitee Pages updated: https://Zeon7744.gitee.io/tri-link-test/"
+          else
+            echo "GITEE_TOKEN not set - skipping Gitee Pages push"
+            echo "Set GITEE_TOKEN in GitHub repo settings to enable auto-deploy"
+          fi
+
+      - name: Summary
+        run: |
+          echo ""
+          echo "=== Gitee Pages Deploy Summary ==="
+          echo "Branch: ${{ github.ref_name }}"
+          echo "Commit: ${{ github.sha }}"
+          echo "Gitee Pages URL: https://Zeon7744.gitee.io/tri-link-test/"
+          echo "GitHub Pages URL: https://Zeon7744.github.io/tri-link-test/"

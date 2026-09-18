@@ -12,6 +12,8 @@
  *   run                 Auto-execute all pending tasks
  *   monitor             Monitor open PRs (GitHub)
  *   release [bump]      Trigger release workflow
+ *   afdian-fetch        Fetch AFDian data one-time
+ *   afdian-watch        Watch AFDian data on interval
  *   interactive         Start interactive REPL mode
  *   help                Show this help
  *
@@ -19,6 +21,7 @@
  *   --repo <name>       Repo name
  *   --branch <name>     Branch (default: main)
  *   --bump <part>       Release bump: major|minor|patch
+ *   --interval <ms>     AFDian watch interval in ms (default: 3600000)
  *   --dry-run           No writes, no pushes
  *   -h, --help          Show help
  */
@@ -82,6 +85,7 @@ function parseArgs(argv) {
       case '--repo':    args.repo    = takeVal(); break;
       case '--branch':  args.branch  = takeVal(); break;
       case '--bump':    args.bump    = takeVal(); break;
+      case '--interval': args.interval = takeVal(); break;
       case '--dry-run': args.dryRun  = true; break;
       case '-h': case '--help': args.help = true; break;
       default:
@@ -91,7 +95,7 @@ function parseArgs(argv) {
   }
   if (args.positional.length > 0) {
     const cmd = args.positional[0];
-    if (['status', 'require', 'run', 'monitor', 'release', 'interactive', 'help'].includes(cmd)) {
+    if (['status', 'require', 'run', 'monitor', 'release', 'interactive', 'afdian-fetch', 'afdian-watch', 'help'].includes(cmd)) {
       args.command = cmd;
       if (cmd === 'require') args.text = args.positional.slice(1).join(' ');
     } else {
@@ -160,6 +164,36 @@ async function main() {
       const { Agent: FullAgent } = require('../src/agent.js');
       const agent = new FullAgent(agentOpts);
       await agent.interact();
+      break;
+    }
+    case 'afdian-fetch': {
+      const { AfdianFetcher } = require('../src/afdian-fetcher.js');
+      const fetcher = new AfdianFetcher({
+        user: process.env.AFDIAN_USER || 'Zeon7744',
+        token: process.env.AFDIAN_TOKEN || '',
+      });
+      console.log('Fetching AFDian data one-time...');
+      const results = await fetcher._tick();
+      console.log(JSON.stringify(results, null, 2));
+      console.log('\nFetcher status:');
+      console.log(JSON.stringify(fetcher.getStatus(), null, 2));
+      break;
+    }
+    case 'afdian-watch': {
+      const { AfdianFetcher: WatchFetcher } = require('../src/afdian-fetcher.js');
+      const intervalMs = args.interval ? parseInt(args.interval, 10) : 3600000;
+      const watchFetcher = new WatchFetcher({
+        user: process.env.AFDIAN_USER || 'Zeon7744',
+        token: process.env.AFDIAN_TOKEN || '',
+        intervalMs,
+        onData: (results) => {
+          console.log('[AfdianWatcher] New data:');
+          results.forEach(r => console.log(' ', r.type, r.ok ? 'OK' : 'ERR', r.timestamp));
+        },
+      });
+      watchFetcher.start(intervalMs);
+      console.log('AFDian watch mode active. Ctrl+C to stop.');
+      process.on('SIGINT', () => { watchFetcher.stop(); process.exit(0); });
       break;
     }
     case 'help':
