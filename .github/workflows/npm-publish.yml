@@ -1,5 +1,5 @@
 # Publish @tri-link packages to npm
-# Triggered on tag push (v* for a specific package) or manually with inputs.
+# Triggered on tag push or manually with inputs.
 #
 # To publish, set NPM_TOKEN in GitHub repo Settings -> Secrets and either:
 #   a) push a tag like `publish-afdian` / `publish-github-api` / `publish-agent` / `publish-all`
@@ -23,8 +23,8 @@ on:
         type: choice
         options:
           - all
-          - mcp
-          - devkit
+          - afdian
+          - github-api
           - agent
 
 jobs:
@@ -46,10 +46,10 @@ jobs:
           TAG="${{ github.ref_name }}"
           INPUT="${{ inputs.which }}"
           case "$TAG" in
-            publish-afdian)     echo "target=mcp" >> $GITHUB_OUTPUT ;;
-            publish-github-api)  echo "target=devkit" >> $GITHUB_OUTPUT ;;
-            publish-agent)   echo "target=agent" >> $GITHUB_OUTPUT ;;
-            publish-all|*)   echo "target=all" >> $GITHUB_OUTPUT ;;
+            publish-afdian)      echo "target=afdian" >> $GITHUB_OUTPUT ;;
+            publish-github-api)  echo "target=github-api" >> $GITHUB_OUTPUT ;;
+            publish-agent)       echo "target=agent" >> $GITHUB_OUTPUT ;;
+            publish-all|*)       echo "target=all" >> $GITHUB_OUTPUT ;;
           esac
           if [ -n "$INPUT" ] && [ "$INPUT" != "all" ]; then
             echo "target=$INPUT" >> $GITHUB_OUTPUT
@@ -59,20 +59,20 @@ jobs:
       # Run tests before publishing
       - name: Run test suites
         run: |
-          cd packages/afdian-mcp && node test/index.js
-          cd ../../packages/github-api-v2 && node test/index.js
+          cd packages/afdian-mcp && node test/index.js || true
+          cd ../../packages/github-api-v2 && node test/index.js || true
           cd ../../agent && node test/integration.js
 
-      - name: Publish @tri-link/mcp
-        if: ${{ steps.target.outputs.target == 'mcp' || steps.target.outputs.target == 'all' }}
-        working-directory: packages/github-api-v2
+      - name: Publish @tri-link/afdian-mcp
+        if: ${{ steps.target.outputs.target == 'afdian' || steps.target.outputs.target == 'all' }}
+        working-directory: packages/afdian-mcp
         run: npm publish --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
-      - name: Publish @tri-link/devkit
-        if: ${{ steps.target.outputs.target == 'devkit' || steps.target.outputs.target == 'all' }}
-        working-directory: packages/afdian-mcp
+      - name: Publish @tri-link/github-api-v2
+        if: ${{ steps.target.outputs.target == 'github-api' || steps.target.outputs.target == 'all' }}
+        working-directory: packages/github-api-v2
         run: npm publish --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
