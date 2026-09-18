@@ -1,0 +1,31 @@
+{
+  "name": "@tri-link/mcp",
+  "version": "1.0.0",
+  "description": "Tri-Link MCP - unified MCP server for GitHub + Gitee + AFDian",
+  "main": "src/server.js",
+  "bin": {
+    "tri-link-mcp": "bin/server.js"
+  },
+  "scripts": {
+    "start": "node bin/server.js",
+    "dev": "node --watch src/server.js",
+    "test": "node test/index.js",
+    "lint": "node --check src/server.js"
+  },
+  "keywords": [
+    "mcp",
+    "tri-link",
+    "github",
+    "gitee",
+    "afdian",
+    "model-context-protocol"
+  ],
+  "author": "Zeon7744",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0"
+  }
+}
