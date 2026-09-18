@@ -1,0 +1,144 @@
+# GitHub Pages deploy for tri-link-test dashboard
+# Deploys dashboard/index.html to https://<user>.github.io/tri-link-test/
+# Also runs devkit + mcp + agent tests on every push.
+
+name: Deploy Dashboard + CI
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  # ── Test all packages ────────────────────────────────────────────────────────
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Run DevKit tests
+        working-directory: packages/tri-link-devkit
+        run: node test/index.js
+
+      - name: Run MCP tests
+        working-directory: packages/tri-link-mcp
+        run: node test/index.js
+
+      - name: Run Agent tests
+        working-directory: agent
+        run: node test/integration.js
+
+  # ── Build + deploy to GitHub Pages ─────────────────────────────────────────
+  build:
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      # Regenerate dashboard with current repo stats
+      - name: Regenerate dashboard
+        working-directory: packages/tri-link-devkit
+        run: node bin/cli.js dashboard tri-link-test -g "${{ github.repository_owner }}" -o "${{ github.workspace }}/dashboard"
+
+      # Copy dashboard to public/ for Pages
+      - name: Prepare Pages build
+        run: |
+          rm -rf public
+          mkdir -p public
+          cp dashboard/index.html public/index.html
+
+          # Add a small landing page with links to all three products
+          cat > public/products.html << 'HEREDOC'
+          <!DOCTYPE html>
+          <html lang="en">
+          <head>
+            <meta charset="utf-8"/>
+            <meta name="viewport" content="width=device-width,initial-scale=1"/>
+            <title>Tri-Link Products</title>
+            <style>
+              *{margin:0;padding:0;box-sizing:border-box}
+              body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#0d1117;color:#e6edf3;min-height:100vh;padding:48px 20px}
+              .wrap{max-width:640px;margin:0 auto}
+              h1{font-size:1.5em;margin-bottom:8px}
+              .sub{color:#8b949e;font-size:.9em;margin-bottom:32px}
+              .card{background:#161b22;border:1px solid #30363d;border-radius:8px;padding:20px;margin-bottom:16px}
+              .card h2{font-size:1.1em;margin-bottom:8px;color:#58a6ff}
+              .card p{font-size:.9em;color:#8b949e;line-height:1.6}
+              .card code{background:#0d1117;padding:2px 6px;border-radius:4px;font-size:.85em}
+              .card pre{background:#0d1117;border-radius:4px;padding:12px;margin-top:8px;font-size:.85em;overflow-x:auto}
+              a{color:#58a6ff;text-decoration:none}
+              a:hover{text-decoration:underline}
+            </style>
+          </head>
+          <body>
+          <div class="wrap">
+            <h1>Tri-Link Products</h1>
+            <div class="sub">GitHub + Gitee + AFDian three-platform toolkit</div>
+
+            <div class="card">
+              <h2>@tri-link/devkit</h2>
+              <p>One-command project init, sync, dashboard, and self-upgrading engine. 13 tests passing.</p>
+              <pre>node packages/tri-link-devkit/bin/cli.js init my-repo</pre>
+            </div>
+
+            <div class="card">
+              <h2>@tri-link/mcp</h2>
+              <p>Unified MCP server with 6 tools: GitHub stats, issues, search, Gitee repo info, AFDian creator + sponsor stats.</p>
+              <pre>node packages/tri-link-mcp/bin/server.js</pre>
+            </div>
+
+            <div class="card">
+              <h2>@tri-link/agent</h2>
+              <p>Autonomous agent: Brain, Planner, CodeGen, AutoSync, SmartOps. 12 integration tests passing.</p>
+              <pre>node agent/bin/agent-cli.js status</pre>
+            </div>
+
+            <div class="card">
+              <h2>Links</h2>
+              <p>
+                <a href="https://github.com/Zeon7744/tri-link-test">GitHub</a> &middot;
+                <a href="https://gitee.com/Zeon7744/tri-link-test">Gitee</a> &middot;
+                <a href="https://afdian.com/a/Zeon7744">AFDian</a> &middot;
+                <a href="/">Dashboard</a>
+              </p>
+            </div>
+          </div>
+          </body>
+          </html>
+          HEREDOC
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: public
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
