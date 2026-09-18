@@ -1,0 +1,98 @@
+# Publish @tri-link packages to npm
+# Triggered on tag push (v* for a specific package) or manually with inputs.
+#
+# To publish, set NPM_TOKEN in GitHub repo Settings -> Secrets and either:
+#   a) push a tag like `publish-mcp` / `publish-devkit` / `publish-agent` / `publish-all`
+#   b) run the workflow manually and select which package(s) to publish
+
+name: Publish to npm
+
+on:
+  push:
+    tags:
+      - 'publish-mcp'
+      - 'publish-devkit'
+      - 'publish-agent'
+      - 'publish-all'
+  workflow_dispatch:
+    inputs:
+      which:
+        description: 'Package(s) to publish'
+        required: true
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - mcp
+          - devkit
+          - agent
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      # Determine which package(s) to publish
+      - name: Determine target
+        id: target
+        run: |
+          TAG="${{ github.ref_name }}"
+          INPUT="${{ inputs.which }}"
+          case "$TAG" in
+            publish-mcp)     echo "target=mcp" >> $GITHUB_OUTPUT ;;
+            publish-devkit)  echo "target=devkit" >> $GITHUB_OUTPUT ;;
+            publish-agent)   echo "target=agent" >> $GITHUB_OUTPUT ;;
+            publish-all|*)   echo "target=all" >> $GITHUB_OUTPUT ;;
+          esac
+          if [ -n "$INPUT" ] && [ "$INPUT" != "all" ]; then
+            echo "target=$INPUT" >> $GITHUB_OUTPUT
+          fi
+          echo "Target: $(cat $GITHUB_OUTPUT | grep target | head -1)"
+
+      # Run tests before publishing
+      - name: Run test suites
+        run: |
+          cd packages/tri-link-devkit && node test/index.js
+          cd ../../packages/tri-link-mcp && node test/index.js
+          cd ../../agent && node test/integration.js
+
+      - name: Publish @tri-link/mcp
+        if: ${{ steps.target.outputs.target == 'mcp' || steps.target.outputs.target == 'all' }}
+        working-directory: packages/tri-link-mcp
+        run: npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Publish @tri-link/devkit
+        if: ${{ steps.target.outputs.target == 'devkit' || steps.target.outputs.target == 'all' }}
+        working-directory: packages/tri-link-devkit
+        run: npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Publish @tri-link/agent
+        if: ${{ steps.target.outputs.target == 'agent' || steps.target.outputs.target == 'all' }}
+        working-directory: agent
+        run: npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Summary
+        run: |
+          echo "## Published to npm" >> $GITHUB_STEP_SUMMARY
+          echo "Tag: ${{ github.ref_name || 'manual' }}" >> $GITHUB_STEP_SUMMARY
+          echo "Target: ${{ steps.target.outputs.target }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Install with:" >> $GITHUB_STEP_SUMMARY
+          echo '```bash' >> $GITHUB_STEP_SUMMARY
+          echo 'npx @tri-link/mcp' >> $GITHUB_STEP_SUMMARY
+          echo 'npx @tri-link/devkit init my-repo' >> $GITHUB_STEP_SUMMARY
+          echo 'npx @tri-link/agent status' >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
