@@ -12,8 +12,26 @@
     "test": "node test/run.js",
     "plan": "node bin/agent-cli.js --plan"
   },
-  "keywords": ["agent", "autonomous", "development", "tri-link"],
+  "keywords": [
+    "agent",
+    "autonomous",
+    "development",
+    "tri-link"
+  ],
   "author": "Zeon7744",
   "license": "MIT",
-  "engines": { "node": ">=18.0.0" }
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Zeon7744/tri-link-test.git"
+  },
+  "homepage": "https://github.com/Zeon7744/tri-link-test",
+  "bugs": {
+    "url": "https://github.com/Zeon7744/tri-link-test/issues"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
 }
