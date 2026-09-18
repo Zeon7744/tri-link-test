@@ -12,7 +12,12 @@
     "test": "node test/index.js",
     "lint": "node --check src/server.js"
   },
-  "keywords": ["mcp", "afdian", "sponsor", "model-context-protocol"],
+  "keywords": [
+    "mcp",
+    "afdian",
+    "sponsor",
+    "model-context-protocol"
+  ],
   "author": "Zeon7744",
   "license": "MIT",
   "engines": {
@@ -20,5 +25,10 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.0"
-  }
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Zeon7744/tri-link-test.git"
+  },
+  "homepage": "https://github.com/Zeon7744/tri-link-test#readme"
 }

@@ -15,10 +15,13 @@
     "lint": "echo 'No linter configured'",
     "agent": "node bin/agent-cli.js",
     "agent:status": "node bin/agent-cli.js --status",
-    "agent:auto-sync": "node bin/agent-cli.js --auto-sync"
-,
+    "agent:auto-sync": "node bin/agent-cli.js --auto-sync",
     "agent:check": "node bin/agent-cli.js --check",
-    "agent:plan": "node bin/agent-cli.js --plan"
+    "agent:plan": "node bin/agent-cli.js --plan",
+    "publish:all": "node scripts/publish.js",
+    "publish:mcp": "npm publish --workspace packages/afdian-mcp --workspace packages/github-api-v2",
+    "publish:dashboard": "npm publish --workspace packages/dashboard",
+    "test": "node agent/test/integration.js"
   },
   "engines": {
     "node": ">=18.0.0"

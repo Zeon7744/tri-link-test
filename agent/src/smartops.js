@@ -70,12 +70,30 @@ class SmartOps {
       this.agent.brain._reflect();
       this.agent.brain.save();
 
-      // 5. Update external metrics
+      // 5. Sync AFDian metrics
+      await this._syncAfdianMetrics();
+      // 6. Update external metrics
       await this._updateExternalMetrics();
 
       console.log('[SmartOps] Check complete. Health: ' + health.checks.github?.status + '/' + health.checks.gitee?.status + '/' + health.checks.afdian?.status);
     } catch (err) {
       console.error('[SmartOps] Error:', err.message);
+    }
+  }
+
+  async _syncAfdianMetrics() {
+    try {
+      const home = process.env.HOME || process.env.USERPROFILE;
+      const statePath = path.join(home, '.tri-link', 'daemon-state.json');
+      if (fs.existsSync(statePath)) {
+        const state = JSON.parse(fs.readFileSync(statePath, 'utf8'));
+        if (state.lastStatus === 'ok') {
+          this.agent.memory.syncAfdianData();
+          console.log('[SmartOps] AFDian data synced, fetches: ' + state.totalFetches);
+        }
+      }
+    } catch (err) {
+      console.log('[SmartOps] AFDian sync skipped:', err.message);
     }
   }
 

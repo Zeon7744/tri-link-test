@@ -2,7 +2,7 @@
 # Triggered on tag push (v* for a specific package) or manually with inputs.
 #
 # To publish, set NPM_TOKEN in GitHub repo Settings -> Secrets and either:
-#   a) push a tag like `publish-mcp` / `publish-devkit` / `publish-agent` / `publish-all`
+#   a) push a tag like `publish-afdian` / `publish-github-api` / `publish-agent` / `publish-all`
 #   b) run the workflow manually and select which package(s) to publish
 
 name: Publish to npm
@@ -10,8 +10,8 @@ name: Publish to npm
 on:
   push:
     tags:
-      - 'publish-mcp'
-      - 'publish-devkit'
+      - 'publish-afdian'
+      - 'publish-github-api'
       - 'publish-agent'
       - 'publish-all'
   workflow_dispatch:
@@ -46,8 +46,8 @@ jobs:
           TAG="${{ github.ref_name }}"
           INPUT="${{ inputs.which }}"
           case "$TAG" in
-            publish-mcp)     echo "target=mcp" >> $GITHUB_OUTPUT ;;
-            publish-devkit)  echo "target=devkit" >> $GITHUB_OUTPUT ;;
+            publish-afdian)     echo "target=mcp" >> $GITHUB_OUTPUT ;;
+            publish-github-api)  echo "target=devkit" >> $GITHUB_OUTPUT ;;
             publish-agent)   echo "target=agent" >> $GITHUB_OUTPUT ;;
             publish-all|*)   echo "target=all" >> $GITHUB_OUTPUT ;;
           esac
@@ -59,20 +59,20 @@ jobs:
       # Run tests before publishing
       - name: Run test suites
         run: |
-          cd packages/tri-link-devkit && node test/index.js
-          cd ../../packages/tri-link-mcp && node test/index.js
+          cd packages/afdian-mcp && node test/index.js
+          cd ../../packages/github-api-v2 && node test/index.js
           cd ../../agent && node test/integration.js
 
       - name: Publish @tri-link/mcp
         if: ${{ steps.target.outputs.target == 'mcp' || steps.target.outputs.target == 'all' }}
-        working-directory: packages/tri-link-mcp
+        working-directory: packages/github-api-v2
         run: npm publish --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Publish @tri-link/devkit
         if: ${{ steps.target.outputs.target == 'devkit' || steps.target.outputs.target == 'all' }}
-        working-directory: packages/tri-link-devkit
+        working-directory: packages/afdian-mcp
         run: npm publish --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
@@ -92,7 +92,7 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "Install with:" >> $GITHUB_STEP_SUMMARY
           echo '```bash' >> $GITHUB_STEP_SUMMARY
-          echo 'npx @tri-link/mcp' >> $GITHUB_STEP_SUMMARY
-          echo 'npx @tri-link/devkit init my-repo' >> $GITHUB_STEP_SUMMARY
-          echo 'npx @tri-link/agent status' >> $GITHUB_STEP_SUMMARY
+          echo 'node bin/afdian-daemon.js --help' >> $GITHUB_STEP_SUMMARY
+          echo 'node bin/daemon-cli.js start 30' >> $GITHUB_STEP_SUMMARY
+          echo 'node bin/agent-cli.js --status' >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY

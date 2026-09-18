@@ -1,7 +1,7 @@
 {
   "name": "@tri-link/github-api",
   "version": "1.0.0",
-  "description": "test",
+  "description": "GitHub API MCP Server - Repository and PR data for AI assistants",
   "main": "src/server.js",
   "bin": {
     "github-api": "bin/server.js"

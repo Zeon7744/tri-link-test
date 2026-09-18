@@ -1,0 +1,63 @@
+name: Deploy to Gitee Pages
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - 'packages/dashboard/**'
+      - '.github/workflows/deploy-gitee-pages.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build Dashboard
+        run: npm run build --workspace=packages/dashboard
+        env:
+          NODE_ENV: production
+
+      - name: Configure Git
+        run: |
+          git config --global user.name "Tri-Link Bot"
+          git config --global user.email "bot@tri-link.dev"
+
+      - name: Deploy to Gitee Pages
+        env:
+          GITEE_TOKEN: ${{ secrets.GITEE_PAGES_TOKEN }}
+        run: |
+          # Clone Gitee repo
+          git clone "https://oauth2:${GITEE_TOKEN}@gitee.com/Zeon7744/tri-link-test.git" gitee-repo
+          cd gitee-repo
+
+          # Configure git for this repo
+          git config user.name "Tri-Link Bot"
+          git config user.email "bot@tri-link.dev"
+
+          # Copy built dashboard to root (Gitee Pages serves from root by default)
+          cp -r ../packages/dashboard/dist/* .
+          rm -rf packages .github agent bin scripts node_modules
+
+          # Commit and push
+          git add -A
+          git commit -m "Deploy dashboard to Gitee Pages [skip ci]" || echo "No changes"
+          git push origin main

@@ -67,6 +67,25 @@ class Memory {
     };
   }
 
+
+  /** Load AFDian daemon state and update metrics */
+  syncAfdianData() {
+    try {
+      const home = process.env.HOME || process.env.USERPROFILE;
+      const statePath = path.join(home, '.tri-link', 'daemon-state.json');
+      if (fs.existsSync(statePath)) {
+        const state = JSON.parse(fs.readFileSync(statePath, 'utf8'));
+        if (state.lastStatus === 'ok' && state.totalFetches > 0) {
+          this.updateMetrics({ lastAfdianFetch: state.lastFetch });
+          if (state.sponsors && Array.isArray(state.sponsors)) {
+            this.data.metrics.afdianSponsors = state.sponsors.length;
+          }
+          this.save();
+        }
+      }
+    } catch (err) { /* silent */ }
+  }
+
   save() {
     this.data.lastUpdated = new Date().toISOString();
     const dir = path.dirname(this.filePath);
@@ -134,6 +153,7 @@ class Memory {
       completedTasks: completedTasks.length,
       totalPlans: plans.length,
       activePlan: plans.find(p => p.id === this.data.activePlan)?.title || 'none',
+      afdianLastFetch: this.data.metrics.lastAfdianFetch || null,
       metrics,
       lastPlan: plans[plans.length - 1]?.title || 'none',
     };

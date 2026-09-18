@@ -1,7 +1,6 @@
 {
   "name": "@tri-link/dashboard",
   "version": "1.0.0",
-  "private": true,
   "scripts": {
     "dev": "vite",
     "build": "vite build",
@@ -14,5 +13,7 @@
   "devDependencies": {
     "@vitejs/plugin-react": "^4.3.0",
     "vite": "^6.0.0"
-  }
+  },
+  "description": "Tri-Link Dashboard - GitHub + Gitee + AFDian analytics web UI",
+  "main": "dist/index.html"
 }

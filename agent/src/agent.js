@@ -47,6 +47,9 @@ class Agent {
     this.smartops = new SmartOps(this);
     this.autosync = new AutoSync(this.memory);
     this.running = false;
+    // Auto-start SmartOps in background (non-blocking)
+    try { this.smartops.start(15 * 60 * 1000); } catch {}
+
     this.conversationHistory = [];
   }
 

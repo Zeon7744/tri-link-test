@@ -133,12 +133,18 @@ function collectTrackedPaths(statusLines) {
 function isAutoSyncFile(filePath) {
   const clean = String(filePath || '').replace(/\\/g, '/');
   const allowed = [
-    /^agent\/src\/auto-sync\.(js|ts)$/i,
-    /^agent\/src\/agent\.(js|ts)$/i,
+    /^agent\/(src|test)\/.+\.js$/i,
     /^agent\/README\.md$/i,
-    /^bin\/agent-cli\.js$/i,
+    /^bin\/.+\.js$/i,
+    /^scripts\/.+\.(js|ps1)$/i,
+    /^packages\/.+/i,
+    /^\.github\/workflows\/.+\.yml$/i,
     /^package\.json$/i,
+    /^package-lock\.json$/i,
     /^CHANGELOG\.md$/i,
+    /^README\.md$/i,
+    /^\.gitignore$/i,
+    /^\.editorconfig$/i,
   ];
   return allowed.some((re) => re.test(clean));
 }

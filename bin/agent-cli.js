@@ -34,7 +34,7 @@ if (args.includes('--report') || args.includes('-r')) {
     console.log('Recent Reflections:');
     report.recentReflections.forEach(r => {
       console.log(`  [${new Date(r.time).toLocaleString()}] Success: ${r.successRate}%`);
-      r.insights.forEach(i => console.log(`    → ${i}`));
+      r.insights.forEach(i => console.log(`    �?${i}`));
     });
   }
 
@@ -77,10 +77,10 @@ if (args.includes('--check') || args.includes('-c')) {
       results.alerts.forEach(a => console.log(`  [${a.level.toUpperCase()}] ${a.check}: ${a.message}`));
       for (const alert of results.alerts) {
         const fix = await ops.autoFix(alert);
-        if (fix.fixed) console.log(`  ✅ Fixed: ${fix.action}`);
+        if (fix.fixed) console.log(`  �?Fixed: ${fix.action}`);
       }
     } else {
-      console.log('\n✅ All systems healthy');
+      console.log('\n�?All systems healthy');
     }
   })();
   process.exit(0);
@@ -99,7 +99,7 @@ if (args.includes('--auto') || args.includes('-a')) {
     console.log('🧠 Pattern matches:');
     hints.forEach(h => {
       const conf = h.confidence ? ` (confidence: ${Math.round(h.confidence * 100)}%)` : '';
-      console.log(`  • ${h.pattern}${conf} — est: ${h.estimate}`);
+      console.log(`  �?${h.pattern}${conf} �?est: ${h.estimate}`);
     });
     console.log('');
   }
@@ -115,7 +115,7 @@ if (args.includes('--optimize') || args.includes('-o')) {
   console.log(analysis.note);
   if (analysis.suggestions.length > 0) {
     console.log('\nSuggestions:');
-    analysis.suggestions.forEach(s => console.log('  • ' + s.hint));
+    analysis.suggestions.forEach(s => console.log('  �?' + s.hint));
   } else {
     console.log('No optimization suggestions yet.');
   }
@@ -135,17 +135,17 @@ if (args[0] === '--codegen') {
   if (type === 'mcp') {
     const result = agent.codegen.generateMCPServer(name, { description: desc });
     if (result.success) {
-      console.log('✅ Generated MCP server at: ' + result.path);
+      console.log('�?Generated MCP server at: ' + result.path);
     } else {
-      console.log('❌ ' + result.message);
+      console.log('�?' + result.message);
       process.exit(1);
     }
   } else if (type === 'widget') {
     const result = agent.codegen.generateDashboardWidget(name, { title: desc });
     if (result.success) {
-      console.log('✅ Generated widget at: ' + result.path);
+      console.log('�?Generated widget at: ' + result.path);
     } else {
-      console.log('❌ ' + result.message);
+      console.log('�?' + result.message);
       process.exit(1);
     }
   } else {
@@ -196,6 +196,21 @@ if (args.includes('--monetize') || args.includes('-m')) {
   process.exit(0);
 }
 
+
+if (args.includes('--daemon') || args.includes('-d')) {
+  const spawn = require('child_process').spawn;
+  const daemonPath = require('path').resolve(__dirname, 'afdian-daemon.js');
+  const subArgs = args.filter(a => a !== '--daemon' && a !== '-d');
+  const cmd = subArgs[0] || 'start';
+  const interval = subArgs[1] ? parseInt(subArgs[1], 10) : undefined;
+  const childArgs = [cmd];
+  if (interval) childArgs.push(String(interval));
+  const child = spawn(process.execPath, [daemonPath, ...childArgs], { stdio: 'inherit', detached: false });
+  child.on('exit', (code) => { process.exit(code || 0); });
+  child.on('error', (err) => { console.error('Daemon error:', err.message); process.exit(1); });
+  return;
+}
+
 if (args.includes('--smartops') || args.includes('-s')) {
   agent.smartops.start(60000);
   console.log('SmartOps running. Press Ctrl+C to stop.');
@@ -233,7 +248,7 @@ if (requirement) {
     console.log('📋 Pattern matches:');
     hints.forEach(h => {
       const conf = h.confidence ? ` (confidence: ${Math.round(h.confidence * 100)}%)` : '';
-      console.log(`  • ${h.pattern}${conf} — est: ${h.estimate}`);
+      console.log(`  �?${h.pattern}${conf} �?est: ${h.estimate}`);
     });
     console.log('');
   }
@@ -247,7 +262,6 @@ if (requirement) {
   process.exit(0);
 }
 
-// Interactive mode
 console.log('\n🤖 Tri-Link Autonomous Agent v2.0 (Self-Learning)\n');
 console.log('Commands: help, status, plan, tasks, run, learn, report, clear, quit\n');
 agent.interact().catch(err => {
