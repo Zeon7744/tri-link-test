@@ -17,6 +17,8 @@ const { Analytics } = require('./analytics');
 const { MonetizationPlanner } = require('./monetization');
 const { SmartOps } = require('./smartops');
 const { AutoSync } = require('./auto-sync');
+const { Monitor } = require('./monitor');
+const { Notification } = require('./notification');
 const fs = require('fs');
 const path = require('path');
 
@@ -46,9 +48,12 @@ class Agent {
     this.monetization = new MonetizationPlanner(this.memory, this.analytics);
     this.smartops = new SmartOps(this);
     this.autosync = new AutoSync(this.memory);
+    this.monitor = new Monitor(this);
+    this.notification = new Notification({ project: this.memory.data.project?.name || 'tri-link-test' });
     this.running = false;
     // Auto-start SmartOps in background (non-blocking)
     try { this.smartops.start(15 * 60 * 1000); } catch {}
+    try { this.monitor.start(); } catch {}
 
     this.conversationHistory = [];
   }
@@ -125,19 +130,34 @@ class Agent {
       this.memory.completeTask(task.id, result);
       const duration = Date.now() - (task._startedAt || Date.now());
       this.brain.learnFromTask({ task, duration, success: true, insights: result ? [result.summary] : [] });
+      this.monitor.taskCompleted();
       log('green', `   ✅ 完成: ${task.title}`);
       this.memory.updateMetrics({ totalCommits: (this.memory.data.metrics.totalCommits || 0) + 1 });
     } catch (err) {
-      log('red', `   ❌ 失败: ${task.title} - ${err.message}`);
-      // Retry or mark failed
+      const retryCount = (task._retryCount || 0) + 1;
+      const maxRetries = task._maxRetries || 3;
+      if (retryCount < maxRetries) {
+        const waitMs = Math.min(Math.pow(2, retryCount) * 2000, 30000);
+        log('yellow', `   ⏳ 重试 ${retryCount}/${maxRetries}: ${task.title} (等待 ${waitMs/1000}s)`);
+        task.status = 'pending';
+        task._retryCount = retryCount;
+        delete task._startedAt;
+        this.memory.addTask(task);
+        await new Promise(r => setTimeout(r, waitMs));
+        return this.executeNext();
+      }
+      log('red', `   ❌ 失败 (已达 ${maxRetries} 次): ${task.title} - ${err.message.substring(0, 80)}`);
       task.status = 'failed';
       task.error = err.message;
+      task._retryCount = retryCount;
       this.memory.addDecision({
         type: 'task_failed',
         taskId: task.id,
         error: err.message,
-        action: 'retry',
+        retries: retryCount,
+        action: 'abort',
       });
+      this.notification?.error('task', `Task failed after ${retryCount} retries: ${task.title}`);
     }
 
     this.memory.set('agentState', {
