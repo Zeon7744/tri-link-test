@@ -15,5 +15,13 @@
     "vite": "^6.0.0"
   },
   "description": "Tri-Link Dashboard - GitHub + Gitee + AFDian analytics web UI",
-  "main": "dist/index.html"
+  "main": "dist/index.html",
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Zeon7744/tri-link-test.git"
+  },
+  "homepage": "https://github.com/Zeon7744/tri-link-test"
 }

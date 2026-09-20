@@ -56,3 +56,7 @@ packages/test-gen-*
 packages/test-mcp-dup-*
 \n# stray root-level copies\nafdian-daemon.js\n\n
 scripts/_*.py
+scripts/_*.js
+scripts/*.py
+packages/test-mcp-*
+packages/MCP

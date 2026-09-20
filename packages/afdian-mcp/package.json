@@ -30,5 +30,8 @@
     "type": "git",
     "url": "git+https://github.com/Zeon7744/tri-link-test.git"
   },
-  "homepage": "https://github.com/Zeon7744/tri-link-test#readme"
+  "homepage": "https://github.com/Zeon7744/tri-link-test#readme",
+  "publishConfig": {
+    "access": "public"
+  }
 }

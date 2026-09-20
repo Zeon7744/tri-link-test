@@ -22,8 +22,29 @@ const CATEGORIES = {
 };
 
 class Planner {
-  constructor(memory) {
+  constructor(memory, brain = null) {
     this.memory = memory;
+    this.brain = brain;
+  }
+
+  /**
+   * Adjust task priorities based on Brain historical patterns
+   */
+  _adjustPriorities(tasks) {
+    if (!this.brain) return tasks;
+    const history = this.brain.data.experience.taskHistory || [];
+    const recent = history.slice(-10);
+    for (const task of tasks) {
+      const cat = task.category;
+      const recentCats = recent.filter(t => t.category === cat);
+      if (recentCats.length > 0) {
+        const failRate = recentCats.filter(t => !t.success).length / recentCats.length;
+        if (failRate > 0.5) {
+          task._brainNote = 'High failure rate (' + Math.round(failRate * 100) + '%) for ' + cat + ' tasks -- consider breaking into smaller steps';
+        }
+      }
+    }
+    return tasks;
   }
 
   /**
@@ -77,8 +98,10 @@ class Planner {
       });
     }
 
+    // Adjust priorities based on Brain history
+    const adjusted = this._adjustPriorities(tasks);
     // Sort by priority
-    tasks.sort((a, b) => PRIORITIES[a.priority] - PRIORITIES[b.priority]);
+    adjusted.sort((a, b) => PRIORITIES[a.priority] - PRIORITIES[b.priority]);
     return tasks;
   }
 
