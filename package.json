@@ -21,7 +21,14 @@
     "publish:all": "node scripts/publish.js",
     "publish:mcp": "npm publish --workspace packages/afdian-mcp --workspace packages/github-api-v2",
     "publish:dashboard": "npm publish --workspace packages/dashboard",
-    "test": "node agent/test/integration.js"
+    "test": "node agent/test/integration.js",
+    "maintain": "node bin/auto-maintain.js",
+    "maintain:start": "node bin/auto-maintain.js start 10",
+    "maintain:stop": "node bin/auto-maintain.js stop",
+    "maintain:status": "node bin/auto-maintain.js status",
+    "maintain:sync": "node bin/auto-maintain.js sync",
+    "maintain:report": "node bin/auto-maintain.js report",
+    "maintain:diff": "node bin/auto-maintain.js diff"
   },
   "engines": {
     "node": ">=18.0.0"
