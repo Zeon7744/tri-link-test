@@ -141,6 +141,7 @@ function githubAPI(path) {
       });
     });
     req.setTimeout(8000, () => { req.destroy(); resolve(null); });
+    req.on('error', (e) => { resolve(null); });
   });
 }
 
@@ -160,6 +161,7 @@ function giteeAPI(path) {
       });
     });
     req.setTimeout(8000, () => { req.destroy(); resolve(null); });
+    req.on('error', (e) => { resolve(null); });
   });
 }
 
@@ -254,6 +256,8 @@ function getLocalState(project) {
     result.fileCount = count;
     result.sizeKB = Math.round(size / 1024);
     result.hasNodeModules = hasNM;
+    try { result.hasReadme = fs.existsSync(path.join(local, 'README.md')); } catch { result.hasReadme = false; }
+    try { result.hasPackageJson = fs.existsSync(path.join(local, 'package.json')) || fs.existsSync(path.join(local, 'src', 'frontend', 'package.json')); } catch { result.hasPackageJson = false; }
   } catch {}
 
   return result;
@@ -366,6 +370,8 @@ async function runCheck() {
   log('=== Auto-Maintain Check ===');
   const state = readState();
   state.lastCheck = new Date().toISOString();
+  // Self-heal: check daemon health
+  await selfHeal();
 
   for (const project of CONFIG.projects) {
     try {
@@ -384,6 +390,10 @@ async function runCheck() {
       state.projects[project.name].localFiles = local.fileCount;
       state.projects[project.name].commitsAhead = local.commitsAhead;
       state.projects[project.name].hasNodeModules = local.hasNodeModules;
+      const pubScore = computePublishScore(local, gh, ge);
+      state.projects[project.name].publishScore = pubScore.score;
+      state.projects[project.name].publishLevel = pubScore.level;
+      state.projects[project.name].publishChecks = pubScore.checks;
 
       // Auto-sync if needed
       if (diff.needsSync && diff.commitsAhead > 0) {
@@ -476,6 +486,46 @@ Usage:
   node bin/auto-maintain.js logs              - Show recent logs
 `);
   process.exit(0);
+}
+
+// Self-healing: restart AFDian daemon if dead
+async function selfHeal() {
+  try {
+    const AFDIAN_PID_FILE = path.join(DATA_DIR, 'daemon.pid');
+    let afdianPid = 0;
+    try { afdianPid = parseInt(fs.readFileSync(AFDIAN_PID_FILE, 'utf8').trim(), 10); } catch {}
+    let alive = false;
+    if (afdianPid) { try { process.kill(afdianPid, 0); alive = true; } catch {} }
+    if (!alive) {
+      log('AFDian daemon dead, restarting...');
+      const afdianScript = path.join(__dirname, 'afdian-daemon.js');
+      const proc = spawn(process.execPath, [afdianScript, 'start', '30'], {
+        cwd: path.join(__dirname, '..'),
+        detached: true,
+        stdio: 'ignore',
+      });
+      proc.unref();
+      await new Promise(r => setTimeout(r, 3000));
+      try { fs.writeFileSync(AFDIAN_PID_FILE, String(proc.pid)); } catch {}
+      log('AFDian daemon restarted (PID ' + proc.pid + ')');
+    }
+  } catch (e) { log('selfHeal error: ' + e.message); }
+}
+
+// Publish Readiness Score
+function computePublishScore(local, gh, ge) {
+  let score = 0;
+  const checks = [];
+  if (local.exists && local.hasReadme) { score += 20; checks.push('README'); } else { checks.push('no-README'); }
+  if (gh.ok) { score += 15; checks.push('GitHub'); } else { checks.push('no-GitHub'); }
+  if (ge.ok) { score += 10; checks.push('Gitee'); } else { checks.push('no-Gitee'); }
+  if (local.exists && !local.hasNodeModules) { score += 15; checks.push('clean'); } else { checks.push('nm'); }
+  if (local.exists && local.commitsAhead === 0) { score += 15; checks.push('synced'); } else { checks.push('unpushed'); }
+  if (local.sizeKB < 50000) { score += 5; } else { checks.push('large'); }
+  if (gh.ok && gh.stars > 0) { score += Math.min(gh.stars * 2, 10); }
+  if (local.exists && local.hasPackageJson) { score += 10; checks.push('pkg'); } else { checks.push('no-pkg'); }
+  const level = score >= 80 ? 'publish-ready' : score >= 50 ? 'needs-work' : 'draft';
+  return { score: Math.min(score, 100), level, checks };
 }
 
 (async () => {
