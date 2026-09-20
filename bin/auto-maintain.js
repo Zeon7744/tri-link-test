@@ -83,6 +83,13 @@ const CONFIG = {
       gitee: 'dev-artifacts',
       type: 'artifact',
     },
+      {
+        name: 'jianzhu-agent',
+        local: 'D:/项目/开发部/开发git/02/建筑行业检测及信息咨询公司agent',
+        github: 'jianzhu-agent',
+        gitee: 'jianzhu-agent',
+        type: 'app',
+      },
   ],
   intervals: {
     github: 5 * 60 * 1000,   // 5 min
