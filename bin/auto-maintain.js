@@ -139,9 +139,10 @@ function githubAPI(path) {
 
 function giteeAPI(path) {
   return new Promise((resolve) => {
+    const token = CONFIG.giteeToken;
     const req = require('https').get({
       hostname: 'gitee.com',
-      path,
+      path: path + (path.indexOf('?') >= 0 ? '&' : '?') + 'access_token=' + token,
       headers: { 'User-Agent': 'tri-link-maintain' },
     }, res => {
       let d = '';
