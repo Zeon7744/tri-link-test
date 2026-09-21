@@ -34,8 +34,14 @@ function loadEnv(key) {
     const envPath = path.join(__dirname, '..', '.env');
     if (fs.existsSync(envPath)) {
       const content = fs.readFileSync(envPath, 'utf8');
-      const match = content.match(new RegExp('^' + key + '=([^\\\\n]+)', 'm'));
-      if (match) return match[1].trim();
+      const lines = content.split('\n');
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (trimmed.startsWith(key + '=')) {
+          const val = trimmed.split('=').slice(1).join('=').trim().replace(/\r/g, '');
+          return val;
+        }
+      }
     }
   } catch {}
   return '';
@@ -139,42 +145,44 @@ function gitCommand(cmd, cwd) {
   }
 }
 
-function githubAPI(path) {
+function githubAPI(apath) {
   return new Promise((resolve) => {
+    if (!CONFIG.githubToken) { resolve({ message: 'GitHub token not configured' }); return; }
     const req = require('https').get({
       hostname: 'api.github.com',
-      path,
-      headers: { 'User-Agent': 'tri-link-maintain', 'Authorization': `Bearer ${CONFIG.githubToken}` },
+      path: apath,
+      headers: { 'User-Agent': 'tri-link-maintain', 'Authorization': 'Bearer ' + CONFIG.githubToken },
     }, res => {
       let d = '';
       res.on('data', c => d += c);
       res.on('end', () => {
         try { resolve(JSON.parse(d)); }
-        catch { resolve({ _raw: d.substring(0, 200) }); }
+        catch { resolve({ _raw: d.substring(0, 300), _status: res.statusCode }); }
       });
     });
-    req.setTimeout(8000, () => { req.destroy(); resolve(null); });
-    req.on('error', (e) => { resolve(null); });
+    req.setTimeout(10000, () => { req.destroy(); resolve(null); });
+    req.on('error', (e) => { resolve({ message: 'GitHub network error: ' + e.message }); });
   });
 }
 
-function giteeAPI(path) {
+function giteeAPI(apath) {
   return new Promise((resolve) => {
     const token = CONFIG.giteeToken;
+    if (!token) { resolve({ message: 'Gitee token not configured' }); return; }
     const req = require('https').get({
       hostname: 'gitee.com',
-      path: path + (path.indexOf('?') >= 0 ? '&' : '?') + 'access_token=' + token,
+      path: apath + (apath.indexOf('?') >= 0 ? '&' : '?') + 'access_token=' + token,
       headers: { 'User-Agent': 'tri-link-maintain' },
     }, res => {
       let d = '';
       res.on('data', c => d += c);
       res.on('end', () => {
         try { resolve(JSON.parse(d)); }
-        catch { resolve({ _raw: d.substring(0, 200) }); }
+        catch { resolve({ _raw: d.substring(0, 300), _status: res.statusCode }); }
       });
     });
-    req.setTimeout(8000, () => { req.destroy(); resolve(null); });
-    req.on('error', (e) => { resolve(null); });
+    req.setTimeout(10000, () => { req.destroy(); resolve(null); });
+    req.on('error', (e) => { resolve({ message: 'Gitee network error: ' + e.message }); });
   });
 }
 
@@ -183,7 +191,16 @@ function giteeAPI(path) {
 async function checkGitHub(project) {
   try {
     const repo = await githubAPI(`/repos/${CONFIG.owner}/${project.github}`);
-    if (!repo || repo.message) return { ok: false, error: repo?.message || 'not found' };
+    if (!repo) return { ok: false, error: 'GitHub API timeout or network error' };
+    if (repo._raw) return { ok: false, error: 'GitHub non-JSON: ' + repo._raw.substring(0, 100) };
+    if (repo.message) {
+      if (repo.message === 'Not Found') return { ok: false, error: 'GitHub repo not found' };
+      if (repo.message === 'Bad credentials') return { ok: false, error: 'GitHub bad credentials' };
+      if (repo.message === 'GitHub token not configured') return { ok: false, error: 'GitHub token not configured' };
+      if (typeof repo.message === 'string' && repo.message.includes('network')) return { ok: false, error: repo.message };
+      if (repo.message && !repo.name) return { ok: false, error: 'GitHub: ' + String(repo.message).substring(0, 100) };
+    }
+    if (!repo.name) return { ok: false, error: 'GitHub: unexpected response' };
     return {
       ok: true,
       stars: repo.stargazers_count,
@@ -206,7 +223,14 @@ async function checkGitHub(project) {
 async function checkGitee(project) {
   try {
     const repo = await giteeAPI(`/api/v5/repos/${CONFIG.owner}/${project.gitee}`);
-    if (!repo || repo.message) return { ok: false, error: repo?.message || 'not found' };
+    if (!repo) return { ok: false, error: 'Gitee API timeout or network error' };
+    if (repo._raw) return { ok: false, error: 'Gitee non-JSON: ' + repo._raw.substring(0, 100) };
+    if (repo.message) {
+      const msgStr = typeof repo.message === 'string' ? repo.message : JSON.stringify(repo.message);
+      if (msgStr.includes('401') || msgStr.includes('token') || msgStr.includes('Gitee')) return { ok: false, error: 'Gitee: ' + msgStr.substring(0, 100) };
+      if (!repo.name) return { ok: false, error: 'Gitee: ' + msgStr.substring(0, 100) };
+    }
+    if (!repo.name) return { ok: false, error: 'Gitee: unexpected response' };
     return {
       ok: true,
       stars: repo.stargazers_count,
@@ -618,8 +642,8 @@ function computePublishScore(local, gh, ge) {
           console.log(`  Files: ${local.fileCount} | Size: ${local.sizeKB}KB | NM: ${local.hasNodeModules}`);
           console.log(`  Ahead: ${local.commitsAhead} | Behind: ${local.commitsBehind}`);
         }
-        console.log(`  GitHub: ${gh.ok ? '★'+gh.stars+' '+gh.size+'KB' : 'ERR'}`);
-        console.log(`  Gitee: ${ge.ok ? '★'+ge.stars : 'ERR'}`);
+        console.log(`  GitHub: ${gh.ok ? '★'+gh.stars+' '+gh.size+'KB' : 'ERR: '+gh.error}`);
+        console.log(`  Gitee: ${ge.ok ? '★'+ge.stars : 'ERR: '+ge.error}`);
         console.log('');
       }
       break;
@@ -630,6 +654,15 @@ function computePublishScore(local, gh, ge) {
         const lines = fs.readFileSync(LOG_FILE, 'utf8').split('\n').filter(Boolean);
         console.log(lines.slice(-30).join('\n'));
       } catch { console.log('No log file yet.'); }
+      break;
+    }
+
+    case 'config-check': {
+      console.log('=== Config Check ===');
+      console.log('GitHub token:', CONFIG.githubToken ? CONFIG.githubToken.substring(0,10) + '...' : '(EMPTY)');
+      console.log('Gitee token:', CONFIG.giteeToken ? CONFIG.giteeToken.substring(0,10) + '...' : '(EMPTY)');
+      console.log('Owner:', CONFIG.owner, '| Projects:', CONFIG.projects.length);
+      for (const p of CONFIG.projects) console.log('  -', p.name, '| GH:', p.github, '| Gitee:', p.gitee);
       break;
     }
 
