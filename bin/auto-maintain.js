@@ -28,9 +28,22 @@ const STATE_FILE = path.join(DATA_DIR, 'maintain-state.json');
 const LOG_FILE = path.join(DATA_DIR, 'maintain.log');
 const PID_FILE = path.join(DATA_DIR, 'maintain.pid');
 
+// Load .env file for tokens
+function loadEnv(key) {
+  try {
+    const envPath = path.join(__dirname, '..', '.env');
+    if (fs.existsSync(envPath)) {
+      const content = fs.readFileSync(envPath, 'utf8');
+      const match = content.match(new RegExp('^' + key + '=([^\\\\n]+)', 'm'));
+      if (match) return match[1].trim();
+    }
+  } catch {}
+  return '';
+}
+
 const CONFIG = {
-  githubToken: process.env.GITHUB_TOKEN || '[REDACTED_GITHUB_TOKEN]',
-  giteeToken: process.env.GITEE_TOKEN || '[REDACTED_GITEE_TOKEN]',
+  githubToken: process.env.GITHUB_TOKEN || loadEnv('GITHUB_TOKEN'),
+  giteeToken: process.env.GITEE_TOKEN || loadEnv('GITEE_TOKEN'),
   owner: 'Zeon7744',
   // Projects to monitor: localPath -> { githubRepo, giteeRepo }
   projects: [
