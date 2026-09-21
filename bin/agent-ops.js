@@ -59,7 +59,21 @@ function log(msg) {
 }
 
 function git(cmd, cwd) {
-  try { return execSync(cmd, { cwd, encoding: 'utf8', timeout: 30000 }).trim(); }
+  try {
+    const isWin = process.platform === 'win32';
+    let result;
+    if (isWin) {
+      // On Windows, replace Unix patterns
+      let winCmd = cmd
+        .replace(/2>\\\\$null/g, '2>`NUL')
+        .replace(/ \\| head -1/g, '')
+        .replace(/ \\| head -\\d+/g, '');
+      result = execSync(winCmd, { cwd, encoding: 'utf8', timeout: 30000 }).trim();
+    } else {
+      result = execSync(cmd, { cwd, encoding: 'utf8', timeout: 30000 }).trim();
+    }
+    return result;
+  }
   catch { return null; }
 }
 
@@ -149,7 +163,7 @@ function analyzeRisks(project) {
   }
   
   // 3. Check for node_modules in git tracking
-  const trackedNM = git('git ls-files | grep node_modules | head -1', local);
+  const trackedNM = git('git ls-files -- "*node_modules*" 2>nul | more +0', local);
   if (trackedNM) {
     risks.push({ severity: 'high', category: 'bloat', file: 'node_modules/', issue: 'node_modules tracked in git', fix: 'Remove with git rm -r --cached node_modules && add to .gitignore' });
   }
@@ -387,7 +401,7 @@ async function runCycle() {
         localState.exists = true;
         localState.hasReadme = fs.existsSync(path.join(project.local, 'README.md'));
         localState.hasPackageJson = fs.existsSync(path.join(project.local, 'package.json')) || fs.existsSync(path.join(project.local, 'src', 'frontend', 'package.json'));
-        const ahead = git('git rev-list --count HEAD..origin/main 2>/dev/null || git rev-list --count HEAD..origin/master 2>/dev/null || echo 0', project.local);
+        const ahead = git('git rev-list --count HEAD..origin/main 2>$null || git rev-list --count HEAD..origin/master 2>$null || echo 0', project.local);
         localState.commitsAhead = parseInt(ahead) || 0;
       }
       
@@ -395,11 +409,11 @@ async function runCycle() {
       let ghState = { ok: false, stars: 0, size: 0 };
       let geState = { ok: false, stars: 0, size: 0 };
       try {
-        const ghResult = git('git ls-remote origin main 2>/dev/null | head -1', project.local);
+        const ghResult = git('git ls-remote origin main 2>$null | head -1', project.local);
         ghState.ok = !!ghResult;
       } catch {}
       try {
-        const geResult = git('git ls-remote gitee main 2>/dev/null | head -1', project.local);
+        const geResult = git('git ls-remote gitee main 2>$null | head -1', project.local);
         geState.ok = !!geResult;
       } catch {}
       
@@ -556,13 +570,13 @@ switch (cmd) {
       const risks = analyzeRisks(project);
       let localState = { exists: fs.existsSync(project.local), commitsAhead: 0, hasNodeModules: false, hasReadme: false, hasPackageJson: false, sizeKB: 0, fileCount: 0 };
       if (localState.exists) {
-        const ahead = git('git rev-list --count HEAD..origin/main 2>/dev/null || git rev-list --count HEAD..origin/master 2>/dev/null || echo 0', project.local);
+        const ahead = git('git rev-list --count HEAD..origin/main 2>$null || git rev-list --count HEAD..origin/master 2>$null || echo 0', project.local);
         localState.commitsAhead = parseInt(ahead) || 0;
         localState.hasReadme = fs.existsSync(path.join(project.local, 'README.md'));
         localState.hasPackageJson = fs.existsSync(path.join(project.local, 'package.json'));
       }
-      const ghState = { ok: !!git('git ls-remote origin main 2>/dev/null | head -1', project.local), stars: 0, size: 0 };
-      const geState = { ok: !!git('git ls-remote gitee main 2>/dev/null | head -1', project.local), stars: 0, size: 0 };
+      const ghState = { ok: !!git('git ls-remote origin main 2>$null | head -1', project.local), stars: 0, size: 0 };
+      const geState = { ok: !!git('git ls-remote gitee main 2>$null | head -1', project.local), stars: 0, size: 0 };
       const score = comprehensiveScore(project, risks, localState, ghState, geState);
       console.log(`${project.name}: ${score.grade} (${score.score}/100) publishable=${score.publishable}`);
       if (score.recommendations.length > 0) {
