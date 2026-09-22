@@ -54,9 +54,10 @@ class OpsAgent {
       if (!config) return { status: 'warning', message: 'No AFDian config found' };
       const crypto = require('crypto');
       const ts = Math.floor(Date.now() / 1000);
-      const raw = `${config.token}params{}ts${ts}user_id${config.user_id}`;
+      const paramsJson = JSON.stringify({stat: '1'});
+      const raw = `${config.token}params${paramsJson}ts${ts}user_id${config.user_id}`;
       const sign = crypto.createHash('md5').update(raw, 'utf8').digest('hex');
-      const body = JSON.stringify({ user_id: config.user_id, params: '{}', ts, sign });
+      const body = JSON.stringify({ user_id: config.user_id, params: paramsJson, ts, sign });
       const resp = await this._httpPost(`${config.api_base}/query-sponsor`, body);
       const data = JSON.parse(resp);
       if (data.ec === 200) return { status: 'ok', message: 'AFDian API OK' };
