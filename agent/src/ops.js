@@ -77,7 +77,10 @@ class OpsAgent {
   _httpGet(hostPath) {
     return new Promise((resolve, reject) => {
       const url = new URL(`https://${hostPath}`);
-      const req = https.request(url, { headers: { 'User-Agent': 'tri-link-agent/1.0' } }, (res) => {
+      const token = url.hostname.includes('gitee') ? process.env.GITEE_TOKEN : process.env.GITHUB_TOKEN;
+      const headers = { 'User-Agent': 'tri-link-agent/1.0' };
+      if (token) headers['Authorization'] = 'token ' + token;
+      const req = https.request(url, { headers }, (res) => {
         let data = '';
         res.on('data', c => data += c);
         res.on('end', () => resolve(data));
