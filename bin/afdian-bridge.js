@@ -147,6 +147,30 @@ async function collectRepoInfo(project) {
     }
   }
 
+  // Local README fallback (fixes Chinese encoding issues from GitHub API)
+  try {
+    if (project.local && fs.existsSync(project.local)) {
+      const lr = path.join(project.local, 'README.md');
+      if (fs.existsSync(lr)) {
+        const lc = fs.readFileSync(lr, 'utf8');
+        if (lc.length > 50 && !lc.includes(String.fromCharCode(65533))) {
+          info.readme = lc.substring(0, 2000);
+          // Fix: GitHub API replaces CJK chars with '?'. Use local README if desc is broken.
+          const hasCJK = /[\u4e00-\u9fff]/.test(info.description || '');
+          if (!hasCJK) {
+            const ll = lc.split('\n').filter(l => l.trim() && !l.startsWith('#'));
+            if (ll.length > 0) info.description = ll[0].substring(0, 120);
+          }
+          // Extract description from first non-heading line
+          const ll = lc.split('\n').filter(l => l.trim() && !l.startsWith('#'));
+          if (ll.length > 0 && info.description && info.description.includes(String.fromCharCode(65533))) {
+            info.description = ll[0].substring(0, 120);
+          }
+        }
+      }
+    }
+  } catch {}
+
   // Gitee
   const ge = await giteeAPI(`/api/v5/repos/${CONFIG.owner}/${project.gitee}`);
   if (ge && (ge.full_name || ge.name)) {
@@ -210,8 +234,11 @@ function buildSponsorPage(repoInfos, date) {
     const links = [gh, ge].filter(Boolean).join(' · ');
     const status = r.github.updated ? `最近更新: ${r.github.updated}` : '数据同步中';
     page += `### ${r.name}\n${links}\n${status}\n\n`;
-    let sd = r.github.description || r.gitee.description || '';
-    if (sd && /\uFFFD/.test(sd)) sd = '';
+    let sd = r.description || r.github.description || r.gitee.description || '';
+    if (!/[\u4e00-\u9fff]/.test(sd) && r.readme) {
+      const rl = r.readme.split('\n').filter(l => l.trim() && !l.startsWith('#'));
+      sd = rl.length > 0 ? rl[0] : '';
+    }
     if (sd) page += `${sd}\n\n`;
   }
   page += `---\n*由 tri-link 自动同步系统生成 · ${date}*`;
