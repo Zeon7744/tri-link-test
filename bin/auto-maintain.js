@@ -109,6 +109,27 @@ const CONFIG = {
         gitee: 'jianzhu-agent',
         type: 'app',
       },
+    {
+      name: 'jianzhu-saas',
+      local: 'D:/项目/开发部/github/jianzhu-saas',
+      github: 'jianzhu-saas',
+      gitee: 'jianzhu-saas',
+      type: 'app',
+    },
+    {
+      name: 'ashare-quant',
+      local: 'D:/项目/开发部/github/ashare-quant',
+      github: 'ashare-quant',
+      gitee: 'ashare-quant',
+      type: 'app',
+    },
+    {
+      name: 'domestic-drama',
+      local: 'D:/项目/开发部/github/domestic-drama',
+      github: 'domestic-drama',
+      gitee: 'domestic-drama',
+      type: 'app',
+    },
   ],
   intervals: {
     github: 5 * 60 * 1000,   // 5 min
