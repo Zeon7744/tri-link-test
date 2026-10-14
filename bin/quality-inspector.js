@@ -245,7 +245,10 @@ function fileHygieneCheck(localPath) {
   const findings = [];
 
   // Large files
-  const largeFiles = walkFiles(localPath, 0, 5).filter(f => !f.includes('node_modules') && !f.includes('.git'));
+  const largeFiles = walkFiles(localPath, 0, 5).filter(f =>
+      !f.includes('node_modules') && !f.includes('.git') &&
+      !f.includes('/dist/') && !f.includes('/.vite/') && !/[\\/]dist\\?/i.test(f) && !/[\\/]\.vite/i.test(f)
+    );
   for (const f of largeFiles) {
     try {
       const stat = fs.statSync(f);
