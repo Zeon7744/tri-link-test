@@ -63,10 +63,12 @@ function securityScan(localPath) {
     { re: /AKIA[0-9A-Z]{16}/g, label: 'AWS access key' },
   ];
 
-  const files = walkFiles(localPath, 0, 4).filter(f =>
-    /\.(js|ts|py|json|yml|yaml|env|cfg|ini|sh|ps1)$/.test(f) && !f.includes('node_modules')
-  );
-
+  const files = walkFiles(localPath, 0, 4).filter(f => {
+    const extOk = /\.(js|ts|py|json|yml|yaml|cfg|ini|sh|ps1)$/.test(f);
+    const notNM = !f.includes('node_modules');
+    const notEnv = !f.split(/[\\/]/).pop().startsWith('.env');
+    return extOk && notNM && notEnv;
+  });
   for (const file of files) {
     try {
       const content = fs.readFileSync(file, 'utf8');
