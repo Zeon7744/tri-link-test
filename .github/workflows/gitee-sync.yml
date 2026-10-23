@@ -58,7 +58,7 @@ jobs:
           echo "- Consider setting up Gitee webhook for real-time sync" >> sync-report.md
 
       - name: Upload status report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: sync-report
           path: sync-report.md
