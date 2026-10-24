@@ -1,13 +1,15 @@
 # 三端自动镜像：GitHub push → Gitee(SSH) + GitCode(token) 全自动
 # 凭据走 GitHub Secrets：
-#   GITEE_SSH_PRIVATE_KEY = 本仓专用 SSH 私钥（已生成，必须含完整 BEGIN/END 边界行）
-#   GITCODE_TOKEN         = GitCode PAT
+#   GITEE_SSH_PRIVATE_KEY = 本仓专用 SSH 私钥（必须含完整 -----BEGIN/END OPENSSH PRIVATE KEY----- 边界行）
+#   GITCODE_TOKEN         = GitCode PAT（仅用于 git push，不是 API 鉴权 token）
 #
-# 韧性设计（2026-10-24 补强）：
-#   - concurrency 串行：同 ref 同时只跑一个 run，避免并发 force push 竞争 GitCode ref lock
+# 韧性设计（2026-10-24 v2）：
 #   - Gitee / GitCode 拆成两个独立 job：一端失败不拖垮另一端
-#   - 每个 job retries: 2：CI 偶发网络抖动可自动重试
-#   - fetch 失败不再静默吞掉：ref 陈旧会触发 GitCode `cannot lock ref` 拒绝，必须 fail-fast
+#   - 每 job retries: 2：CI 偶发网络抖动可自动重试
+#   - concurrency group=mirror-triple-${{ github.ref }} cancel-in-progress=false：
+#     dependabot 批量 push 时后到 run 排队等前一个跑完，避免并发 force push 竞争 ref lock
+#   - fetch 失败不再静默吞掉：ref 陈旧会触发服务端 `cannot lock ref` 拒绝，必须 fail-fast
+#   - secret 缺失/格式错误时跳过本端镜像（warn）而非 fail：避免 Gitee key 损坏拖住 GitCode
 
 name: mirror-triple
 
@@ -31,17 +33,31 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Check GITEE_SSH_PRIVATE_KEY secret
+        id: check_key
+        env:
+          GITEE_SSH_PRIVATE_KEY: ${{ secrets.GITEE_SSH_PRIVATE_KEY }}
+        run: |
+          if [ -z "$GITEE_SSH_PRIVATE_KEY" ]; then
+            echo "::warning::GITEE_SSH_PRIVATE_KEY 未配置，跳过 Gitee 镜像（需白皇在 GitHub 仓库 Settings → Secrets 贴入完整私钥）"
+            echo "skipped=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if ! grep -q "BEGIN OPENSSH PRIVATE KEY" <<< "$GITEE_SSH_PRIVATE_KEY" || ! grep -q "END OPENSSH PRIVATE KEY" <<< "$GITEE_SSH_PRIVATE_KEY"; then
+            echo "::warning::GITEE_SSH_PRIVATE_KEY 缺 OPENSSH 边界行（需含 -----BEGIN OPENSSH PRIVATE KEY----- / -----END OPENSSH PRIVATE KEY-----），跳过 Gitee 镜像"
+            echo "skipped=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "skipped=false" >> "$GITHUB_OUTPUT"
+
       - name: Mirror to Gitee (SSH)
+        if: steps.check_key.outputs.skipped == 'false'
         env:
           GITEE_SSH_PRIVATE_KEY: ${{ secrets.GITEE_SSH_PRIVATE_KEY }}
         run: |
           set -e
           REPO_NAME="tri-link-test"
           echo "$GITEE_SSH_PRIVATE_KEY" > /tmp/gitee_key
-          if ! grep -q "BEGIN" /tmp/gitee_key || ! grep -q "END" /tmp/gitee_key; then
-            echo "::error::GITEE_SSH_PRIVATE_KEY 缺 OPENSSH 边界行，请贴全文（含首尾 -----BEGIN/END-----）"
-            exit 1
-          fi
           chmod 600 /tmp/gitee_key
           mkdir -p ~/.ssh
           ssh-keyscan gitee.com >> ~/.ssh/known_hosts
@@ -52,6 +68,12 @@ jobs:
           git push gitee main --force
           echo "✅ Gitee SSH synced: $(git rev-parse main)"
 
+      - name: Gitee skipped (secret missing)
+        if: steps.check_key.outputs.skipped == 'true'
+        run: |
+          echo "## Gitee 镜像跳过" >> "$GITHUB_STEP_SUMMARY"
+          echo "原因：GITEE_SSH_PRIVATE_KEY 未配置或格式错误。需在 GitHub 仓库 Settings → Secrets 贴入完整私钥（含 BEGIN/END 边界行）。" >> "$GITHUB_STEP_SUMMARY"
+
   mirror-gitcode:
     runs-on: ubuntu-latest
     retries: 2
@@ -60,7 +82,20 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Check GITCODE_TOKEN secret
+        id: check_token
+        env:
+          GITCODE_TOKEN: ${{ secrets.GITCODE_TOKEN }}
+        run: |
+          if [ -z "$GITCODE_TOKEN" ]; then
+            echo "::warning::GITCODE_TOKEN 未配置，跳过 GitCode 镜像（需白皇在 GitHub 仓库 Settings → Secrets 贴入 GitCode PAT）"
+            echo "skipped=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "skipped=false" >> "$GITHUB_OUTPUT"
+
       - name: Mirror to GitCode (login:token)
+        if: steps.check_token.outputs.skipped == 'false'
         env:
           GITCODE_TOKEN: ${{ secrets.GITCODE_TOKEN }}
         run: |
@@ -73,6 +108,13 @@ jobs:
           git push gitcode main --force
           echo "✅ GitCode synced: $(git rev-parse main)"
 
+      - name: GitCode skipped (secret missing)
+        if: steps.check_token.outputs.skipped == 'true'
+        run: |
+          echo "## GitCode 镜像跳过" >> "$GITHUB_STEP_SUMMARY"
+          echo "原因：GITCODE_TOKEN 未配置。需在 GitHub 仓库 Settings → Secrets 贴入 GitCode PAT。" >> "$GITHUB_STEP_SUMMARY"
+
+  # 失败告警：任一镜像 job 失败时打 GITHUB_STEP_SUMMARY（暂不配 webhook，后续白皇可加）
   alert-on-failure:
     needs: [mirror-gitee, mirror-gitcode]
     if: |
