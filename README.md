@@ -23,8 +23,15 @@ Issues 和 PR 请在 GitHub 提交。
 ```bash
 git clone https://github.com/Zeon7744/tri-link-test.git
 cd tri-link-test
-python test_sync.py
+
+# 冒烟测试（9 项，验证三端 workflow / JS 核心 / 收款门控）
+./smoke_test.sh
+
+# 一键演示（含 agent-cli 三端同步检查）
+./run.sh
 ```
+
+> 需要 Node.js 18+；无需 Python。test_sync.py 已改为 JS 工具链，见 `agent/test/`。
 
 ---
 
