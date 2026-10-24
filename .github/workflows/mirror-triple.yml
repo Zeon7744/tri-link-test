@@ -3,13 +3,13 @@
 #   GITEE_SSH_PRIVATE_KEY = 本仓专用 SSH 私钥（必须含完整 -----BEGIN/END OPENSSH PRIVATE KEY----- 边界行）
 #   GITCODE_TOKEN         = GitCode PAT（仅用于 git push，不是 API 鉴权 token）
 #
-# 韧性设计（2026-10-24 v2）：
+# 韧性设计（2026-10-24 v3）：
 #   - Gitee / GitCode 拆成两个独立 job：一端失败不拖垮另一端
-#   - 每 job retries: 2：CI 偶发网络抖动可自动重试
 #   - concurrency group=mirror-triple-${{ github.ref }} cancel-in-progress=false：
 #     dependabot 批量 push 时后到 run 排队等前一个跑完，避免并发 force push 竞争 ref lock
 #   - fetch 失败不再静默吞掉：ref 陈旧会触发服务端 `cannot lock ref` 拒绝，必须 fail-fast
-#   - secret 缺失/格式错误时跳过本端镜像（warn）而非 fail：避免 Gitee key 损坏拖住 GitCode
+#   - secret 缺失/格式错误时跳过本端镜像（warn + skip），不让单端 secret 损坏拖住 workflow
+#   - bash 层重试循环（2 次）：CI 偶发网络抖动自动重试（GitHub Actions 原生无 retries 字段）
 
 name: mirror-triple
 
@@ -27,7 +27,6 @@ concurrency:
 jobs:
   mirror-gitee:
     runs-on: ubuntu-latest
-    retries: 2
     steps:
       - uses: actions/checkout@v4
         with:
@@ -50,7 +49,7 @@ jobs:
           fi
           echo "skipped=false" >> "$GITHUB_OUTPUT"
 
-      - name: Mirror to Gitee (SSH)
+      - name: Mirror to Gitee (SSH, 2 retries)
         if: steps.check_key.outputs.skipped == 'false'
         env:
           GITEE_SSH_PRIVATE_KEY: ${{ secrets.GITEE_SSH_PRIVATE_KEY }}
@@ -63,12 +62,20 @@ jobs:
           ssh-keyscan gitee.com >> ~/.ssh/known_hosts
           export GIT_SSH_COMMAND="ssh -i /tmp/gitee_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes"
           git remote add gitee "git@gitee.com:Zeon7744/${REPO_NAME}.git" 2>/dev/null || git remote set-url gitee "git@gitee.com:Zeon7744/${REPO_NAME}.git"
-          # fetch 失败必须 fail-fast：ref 陈旧会让 force push 在 Gitee 服务端 lock 校验失败
-          git fetch gitee main
-          git push gitee main --force
-          echo "✅ Gitee SSH synced: $(git rev-parse main)"
+          # bash 层重试：fetch / push 各最多 2 次，应对偶发网络抖动
+          for attempt in 1 2; do
+            echo "--- Gitee mirror attempt $attempt ---"
+            if git fetch gitee main && git push gitee main --force; then
+              echo "✅ Gitee SSH synced on attempt $attempt: $(git rev-parse main)"
+              exit 0
+            fi
+            echo "::warning::Gitee mirror attempt $attempt 失败，准备重试..."
+            sleep 5
+          done
+          echo "::error::Gitee mirror 2 次尝试均失败"
+          exit 1
 
-      - name: Gitee skipped (secret missing)
+      - name: Gitee skipped (secret missing/invalid)
         if: steps.check_key.outputs.skipped == 'true'
         run: |
           echo "## Gitee 镜像跳过" >> "$GITHUB_STEP_SUMMARY"
@@ -76,7 +83,6 @@ jobs:
 
   mirror-gitcode:
     runs-on: ubuntu-latest
-    retries: 2
     steps:
       - uses: actions/checkout@v4
         with:
@@ -94,7 +100,7 @@ jobs:
           fi
           echo "skipped=false" >> "$GITHUB_OUTPUT"
 
-      - name: Mirror to GitCode (login:token)
+      - name: Mirror to GitCode (token, 2 retries)
         if: steps.check_token.outputs.skipped == 'false'
         env:
           GITCODE_TOKEN: ${{ secrets.GITCODE_TOKEN }}
@@ -103,10 +109,18 @@ jobs:
           REPO_NAME="tri-link-test"
           GITCODE_TOKEN_ENC=$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1], safe=''))" "$GITCODE_TOKEN")
           git remote add gitcode "https://Zeon7744:${GITCODE_TOKEN_ENC}@gitcode.com/Zeon7744/${REPO_NAME}.git" 2>/dev/null || git remote set-url gitcode "https://Zeon7744:${GITCODE_TOKEN_ENC}@gitcode.com/Zeon7744/${REPO_NAME}.git"
-          # fetch 失败必须 fail-fast：ref 陈旧会让 force push 在 GitCode 服务端 `cannot lock ref` 拒绝
-          git fetch gitcode main
-          git push gitcode main --force
-          echo "✅ GitCode synced: $(git rev-parse main)"
+          # bash 层重试：fetch / push 各最多 2 次，应对偶发网络抖动 + 服务端 ref lock 竞争
+          for attempt in 1 2; do
+            echo "--- GitCode mirror attempt $attempt ---"
+            if git fetch gitcode main && git push gitcode main --force; then
+              echo "✅ GitCode synced on attempt $attempt: $(git rev-parse main)"
+              exit 0
+            fi
+            echo "::warning::GitCode mirror attempt $attempt 失败，准备重试..."
+            sleep 5
+          done
+          echo "::error::GitCode mirror 2 次尝试均失败"
+          exit 1
 
       - name: GitCode skipped (secret missing)
         if: steps.check_token.outputs.skipped == 'true'
