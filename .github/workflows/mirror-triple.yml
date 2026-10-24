@@ -3,13 +3,14 @@
 #   GITEE_SSH_PRIVATE_KEY = 本仓专用 SSH 私钥（必须含完整 -----BEGIN/END OPENSSH PRIVATE KEY----- 边界行）
 #   GITCODE_TOKEN         = GitCode PAT（仅用于 git push，不是 API 鉴权 token）
 #
-# 韧性设计（2026-10-24 v3）：
+# 韧性设计（2026-10-24 v4）：
 #   - Gitee / GitCode 拆成两个独立 job：一端失败不拖垮另一端
 #   - concurrency group=mirror-triple-${{ github.ref }} cancel-in-progress=false：
 #     dependabot 批量 push 时后到 run 排队等前一个跑完，避免并发 force push 竞争 ref lock
 #   - fetch 失败不再静默吞掉：ref 陈旧会触发服务端 `cannot lock ref` 拒绝，必须 fail-fast
+#   - bash 层重试循环（2 次）：CI 偶发网络抖动自动重试
 #   - secret 缺失/格式错误时跳过本端镜像（warn + skip），不让单端 secret 损坏拖住 workflow
-#   - bash 层重试循环（2 次）：CI 偶发网络抖动自动重试（GitHub Actions 原生无 retries 字段）
+#   - secret 格式校验放宽到只查 OPENSSH 边界行（兼容旧式 BEGIN RSA PRIVATE KEY 格式）
 
 name: mirror-triple
 
@@ -42,11 +43,14 @@ jobs:
             echo "skipped=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          if ! grep -q "BEGIN OPENSSH PRIVATE KEY" <<< "$GITEE_SSH_PRIVATE_KEY" || ! grep -q "END OPENSSH PRIVATE KEY" <<< "$GITEE_SSH_PRIVATE_KEY"; then
-            echo "::warning::GITEE_SSH_PRIVATE_KEY 缺 OPENSSH 边界行（需含 -----BEGIN OPENSSH PRIVATE KEY----- / -----END OPENSSH PRIVATE KEY-----），跳过 Gitee 镜像"
+          # 校验：必须含 BEGIN 和 END 边界行（兼容 OPENSSH / RSA / EC / PEM 各种格式）
+          if ! grep -q "BEGIN" <<< "$GITEE_SSH_PRIVATE_KEY" || ! grep -q "END" <<< "$GITEE_SSH_PRIVATE_KEY"; then
+            echo "::warning::GITEE_SSH_PRIVATE_KEY 缺 BEGIN/END 边界行（需贴入完整私钥全文），跳过 Gitee 镜像"
             echo "skipped=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
+          # 打印 key 头 1 行用于诊断（脱敏：只显示首行）
+          echo "key 首行: $(head -c 60 <<< "$GITEE_SSH_PRIVATE_KEY" | tr -d '\n')"
           echo "skipped=false" >> "$GITHUB_OUTPUT"
 
       - name: Mirror to Gitee (SSH, 2 retries)
@@ -62,7 +66,6 @@ jobs:
           ssh-keyscan gitee.com >> ~/.ssh/known_hosts
           export GIT_SSH_COMMAND="ssh -i /tmp/gitee_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes"
           git remote add gitee "git@gitee.com:Zeon7744/${REPO_NAME}.git" 2>/dev/null || git remote set-url gitee "git@gitee.com:Zeon7744/${REPO_NAME}.git"
-          # bash 层重试：fetch / push 各最多 2 次，应对偶发网络抖动
           for attempt in 1 2; do
             echo "--- Gitee mirror attempt $attempt ---"
             if git fetch gitee main && git push gitee main --force; then
@@ -79,7 +82,7 @@ jobs:
         if: steps.check_key.outputs.skipped == 'true'
         run: |
           echo "## Gitee 镜像跳过" >> "$GITHUB_STEP_SUMMARY"
-          echo "原因：GITEE_SSH_PRIVATE_KEY 未配置或格式错误。需在 GitHub 仓库 Settings → Secrets 贴入完整私钥（含 BEGIN/END 边界行）。" >> "$GITHUB_STEP_SUMMARY"
+          echo "原因：GITEE_SSH_PRIVATE_KEY 未配置或格式错误。需在 GitHub 仓库 Settings → Secrets 贴入完整私钥全文（含 -----BEGIN/END----- 边界行）。" >> "$GITHUB_STEP_SUMMARY"
 
   mirror-gitcode:
     runs-on: ubuntu-latest
@@ -109,7 +112,6 @@ jobs:
           REPO_NAME="tri-link-test"
           GITCODE_TOKEN_ENC=$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1], safe=''))" "$GITCODE_TOKEN")
           git remote add gitcode "https://Zeon7744:${GITCODE_TOKEN_ENC}@gitcode.com/Zeon7744/${REPO_NAME}.git" 2>/dev/null || git remote set-url gitcode "https://Zeon7744:${GITCODE_TOKEN_ENC}@gitcode.com/Zeon7744/${REPO_NAME}.git"
-          # bash 层重试：fetch / push 各最多 2 次，应对偶发网络抖动 + 服务端 ref lock 竞争
           for attempt in 1 2; do
             echo "--- GitCode mirror attempt $attempt ---"
             if git fetch gitcode main && git push gitcode main --force; then
@@ -128,7 +130,7 @@ jobs:
           echo "## GitCode 镜像跳过" >> "$GITHUB_STEP_SUMMARY"
           echo "原因：GITCODE_TOKEN 未配置。需在 GitHub 仓库 Settings → Secrets 贴入 GitCode PAT。" >> "$GITHUB_STEP_SUMMARY"
 
-  # 失败告警：任一镜像 job 失败时打 GITHUB_STEP_SUMMARY（暂不配 webhook，后续白皇可加）
+  # 失败告警：任一镜像 job 失败时打 GITHUB_STEP_SUMMARY
   alert-on-failure:
     needs: [mirror-gitee, mirror-gitcode]
     if: |
