@@ -1,7 +1,14 @@
 # 三端自动镜像：GitHub push → Gitee(SSH) + GitCode(token) 全自动
 # 凭据走 GitHub Secrets：
-#   GITEE_SSH_PRIVATE_KEY = 本仓专用 SSH 私钥（已生成）
+#   GITEE_SSH_PRIVATE_KEY = 本仓专用 SSH 私钥（已生成，必须含完整 BEGIN/END 边界行）
 #   GITCODE_TOKEN         = GitCode PAT
+#
+# 韧性设计（2026-10-24 补强）：
+#   - concurrency 串行：同 ref 同时只跑一个 run，避免并发 force push 竞争 GitCode ref lock
+#   - Gitee / GitCode 拆成两个独立 job：一端失败不拖垮另一端
+#   - 每个 job retries: 2：CI 偶发网络抖动可自动重试
+#   - fetch 失败不再静默吞掉：ref 陈旧会触发 GitCode `cannot lock ref` 拒绝，必须 fail-fast
+
 name: mirror-triple
 
 on:
@@ -11,9 +18,14 @@ on:
   schedule:
     - cron: '0 0 * * *'
 
+concurrency:
+  group: mirror-triple-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
-  mirror:
+  mirror-gitee:
     runs-on: ubuntu-latest
+    retries: 2
     steps:
       - uses: actions/checkout@v4
         with:
@@ -35,9 +47,18 @@ jobs:
           ssh-keyscan gitee.com >> ~/.ssh/known_hosts
           export GIT_SSH_COMMAND="ssh -i /tmp/gitee_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes"
           git remote add gitee "git@gitee.com:Zeon7744/${REPO_NAME}.git" 2>/dev/null || git remote set-url gitee "git@gitee.com:Zeon7744/${REPO_NAME}.git"
-          git fetch gitee main 2>/dev/null || true
+          # fetch 失败必须 fail-fast：ref 陈旧会让 force push 在 Gitee 服务端 lock 校验失败
+          git fetch gitee main
           git push gitee main --force
           echo "✅ Gitee SSH synced: $(git rev-parse main)"
+
+  mirror-gitcode:
+    runs-on: ubuntu-latest
+    retries: 2
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Mirror to GitCode (login:token)
         env:
@@ -47,14 +68,20 @@ jobs:
           REPO_NAME="tri-link-test"
           GITCODE_TOKEN_ENC=$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1], safe=''))" "$GITCODE_TOKEN")
           git remote add gitcode "https://Zeon7744:${GITCODE_TOKEN_ENC}@gitcode.com/Zeon7744/${REPO_NAME}.git" 2>/dev/null || git remote set-url gitcode "https://Zeon7744:${GITCODE_TOKEN_ENC}@gitcode.com/Zeon7744/${REPO_NAME}.git"
-          git fetch gitcode main 2>/dev/null || true
+          # fetch 失败必须 fail-fast：ref 陈旧会让 force push 在 GitCode 服务端 `cannot lock ref` 拒绝
+          git fetch gitcode main
           git push gitcode main --force
           echo "✅ GitCode synced: $(git rev-parse main)"
 
-      - name: Summary
-        run: |
-          echo "## Mirror-triple 完成（Gitee SSH + GitCode token）" >> "$GITHUB_STEP_SUMMARY"
-          echo "- 仓: Zeon7744/tri-link-test" >> "$GITHUB_STEP_SUMMARY"
-          echo "- 触发: ${{ github.event_name }} @ ${{ github.sha }}" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Gitee: SSH 自动镜像 ✅" >> "$GITHUB_STEP_SUMMARY"
-          echo "- GitCode: token 自动镜像 ✅" >> "$GITHUB_STEP_SUMMARY"
+  alert-on-failure:
+    needs: [mirror-gitee, mirror-gitcode]
+    if: |
+      !cancelled() &&
+      (needs.mirror-gitee.result == 'failure' || needs.mirror-gitcode.result == 'failure')
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          echo "## ⚠️ Mirror-triple 失败告警" >> "$GITHUB_STEP_SUMMARY"
+          echo "某端同步失败，需人工排查（GitHub 侧正常，Gitee/GitCode 可能未同步）" >> "$GITHUB_STEP_SUMMARY"
+          echo "触发 run: ${{ github.run_id }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "检查 Actions 日志确认哪一端失败后手动补推" >> "$GITHUB_STEP_SUMMARY"
